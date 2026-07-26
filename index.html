@@ -20,6 +20,7 @@
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:radial-gradient(1100px 560px at 50% -12%,#12203a 0,transparent 60%),var(--bg);
     color:var(--ink); font-family:var(--sans); min-height:100dvh; display:flex; justify-content:center;
+    align-items:flex-start;   /* ★ .app을 뷰포트 높이로 stretch하지 않음 — 안 그러면 세로 flex 자식들이 짜부라져 차트가 붕괴 */
     padding:10px; overflow-x:hidden; -webkit-tap-highlight-color:transparent}
   .app{width:min(480px,100%); display:flex; flex-direction:column; gap:9px; color:var(--ink)}
   .app.shake{animation:shake .5s cubic-bezier(.36,.07,.19,.97)}
@@ -27,7 +28,7 @@
     30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
 
   /* ── 시장 (라이브 캔들 = 매매판) ─────────────────────────── */
-  .market{position:relative; height:196px; border-radius:18px; overflow:hidden;
+  .market{position:relative; height:196px; flex:0 0 196px; border-radius:18px; overflow:hidden;
     background:linear-gradient(180deg,#0c1626,#080d16); border:1px solid var(--edge);
     box-shadow:0 14px 40px rgba(0,0,0,.55); user-select:none}
   .market canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
