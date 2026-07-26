@@ -225,6 +225,21 @@
   .flash.go{animation:flash .5s ease-out}
   @keyframes flash{0%{opacity:.5}100%{opacity:0}}
 
+  /* 코치 (지금 뭘 해야 하나) */
+  .coach{display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px;
+    background:linear-gradient(180deg,#13251f,#0d1a15); border:1px solid #2f7d57;
+    font:700 12.5px/1.4 var(--sans); color:#95f0c4; box-shadow:0 0 16px rgba(39,224,138,.1)}
+  .coach .ico{flex:0 0 auto; font-size:16px}
+
+  /* 튜토리얼 */
+  .box.tut{max-width:344px}
+  .box.tut .tut-steps{text-align:left; margin:16px 0 4px; display:flex; flex-direction:column; gap:11px}
+  .box.tut .tut-steps p{font:600 12.5px/1.55 var(--sans); color:var(--dim)}
+  .box.tut .tut-steps b{color:var(--ink)}
+  .box.tut .tut-steps .k{display:inline-block; padding:1px 7px; border-radius:6px; font-weight:800; font-family:var(--mono); font-size:11px}
+  .box.tut .tut-steps .k.long{background:rgba(39,224,138,.16); color:var(--green)}
+  .box.tut .tut-steps .k.short{background:rgba(255,90,110,.16); color:var(--red)}
+
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   .hidden{display:none!important}
 </style>
@@ -244,6 +259,8 @@
     </div>
     <div class="event-banner" id="eventBanner"></div>
   </div>
+
+  <div class="coach" id="coach"><span class="ico">👉</span><span id="coachText">차트 방향을 예측해 매매하세요</span></div>
 
   <!-- 트레이딩 데스크 (액티브 코어) -->
   <div class="desk" id="desk">
@@ -344,6 +361,18 @@
   <button id="dailyClose">받기</button>
 </div></div>
 
+<div class="modal" id="tutModal" hidden><div class="box tut">
+  <div class="end-em" style="font-size:50px">🏦</div>
+  <h2>트레이딩 제국에 오신 걸 환영합니다</h2>
+  <div class="tut-steps">
+    <p><b>💰 위 숫자가 당신의 현금</b>입니다. 이걸 불리는 게 전부예요.</p>
+    <p><b>📈 버는 법 ① 차트 매매 (핵심)</b><br>오를 것 같으면 <span class="k long">▲롱</span>, 내릴 것 같으면 <span class="k short">▼숏</span>. 맞으면 현금이 불고, <b>[청산]</b>으로 챙깁니다. 이길수록 <b>연승 보너스</b>!</p>
+    <p><b>🤖 버는 법 ② 봇 구매</b><br>아래 <b>[봇]</b> 탭에서 봇을 사면 <b>가만히 둬도 자동으로</b> 현금이 쌓여요. (매매 실탄)</p>
+    <p><b>🎯 목표</b> — 봇으로 실탄 모으고 → 차트로 크게 굴려 → 제국을 키워 <b>명예의 전당</b>까지!</p>
+  </div>
+  <button id="tutClose">시작하기 ▸</button>
+</div></div>
+
 <div class="modal" id="endModal" hidden><div class="box end">
   <div class="end-em" id="endEm">🏆</div>
   <h2 id="endTitle">명예의 전당 입성</h2>
@@ -380,7 +409,7 @@
   const fresh = () => ({
     money:100, owned:BOTS.map(()=>0), gachaMult:1, pulls:0,
     coll:{C:0,R:0,E:0,L:0}, fame:0, lastTs:now(), daily:{last:"",streak:0},
-    boostUntil:0, freeGachaAt:0, ach:{}, endings:{}, trades:0, bestStreak:0, bestTrade:0
+    boostUntil:0, freeGachaAt:0, ach:{}, endings:{}, trades:0, bestStreak:0, bestTrade:0, seenTut:0
   });
   const KEY = "trading-empire-v1";
   function load(){
@@ -391,7 +420,7 @@
       S.coll = {C:num(S.coll.C), R:num(S.coll.R), E:num(S.coll.E), L:num(S.coll.L)};
       S.money=num(S.money); S.gachaMult=num(S.gachaMult)||1; S.fame=num(S.fame); S.pulls=num(S.pulls);
       S.boostUntil=num(S.boostUntil); S.freeGachaAt=num(S.freeGachaAt);
-      S.trades=num(S.trades); S.bestStreak=num(S.bestStreak); S.bestTrade=num(S.bestTrade);
+      S.trades=num(S.trades); S.bestStreak=num(S.bestStreak); S.bestTrade=num(S.bestTrade); S.seenTut=num(S.seenTut);
       S.daily = Object.assign({last:"",streak:0}, S.daily||{}); S.daily.streak=num(S.daily.streak);
       S.ach = (S.ach&&typeof S.ach==="object")? S.ach : {};
       S.endings = (S.endings&&typeof S.endings==="object")? S.endings : {};
@@ -665,6 +694,18 @@
     $("goalStrip").innerHTML = a
       ? `🎯 <b>${a.name}</b> (${a.desc}) <span class="pg">${fmt(Math.min(a.need(),a.goal))}/${fmt(a.goal)}</span><span class="rw">${a.rt}</span>`
       : `🏆 모든 업적 달성!`;
+    $("coachText").textContent = coach();
+  }
+  // 지금 뭘 해야 하나 — 상태별 한 줄 안내(첫 사용자 이탈 방지)
+  function coach(){
+    if(TR.open){ const p=pnlPct();
+      return p>=0 ? "지금 수익 중! [청산]으로 현금화하거나, 더 갈지 판단하세요"
+                  : "마이너스… 반등을 버틸지, 손절 청산할지 결정하세요"; }
+    const firstBotCost = Math.ceil(BOTS[0].base*Math.pow(1.15,S.owned[0]));
+    if(totalBots()===0) return "먼저 아래 [🤖봇] 탭에서 스캘핑 봇을 사보세요 — 가만히 둬도 현금이 쌓여요";
+    if(S.trades===0) return "차트가 오를 것 같으면 ▲롱, 내릴 것 같으면 ▼숏! 맞히면 현금이 불어납니다";
+    if(S.money < firstBotCost) return "현금이 적어요 — 봇 수입을 기다리거나 소액으로 롱/숏 도전!";
+    return "봇으로 실탄 모으고 차트로 크게! 🔥불장=롱, 💥폭락=숏이 유리";
   }
   function renderGacha(){
     $("gachaMult").textContent = "×"+S.gachaMult.toFixed(2);
@@ -821,6 +862,8 @@
   buildBots(); fitChart(); renderAll();
   MKT.nextEv=now()+rnd(10000,18000);
   if(had) grantOffline();
+  if(!S.seenTut) $("tutModal").hidden=false;   // 첫 실행(또는 튜토리얼 미시청) → 안내
+  $("tutClose").onclick=()=>{ S.seenTut=1; $("tutModal").hidden=true; save(); };
   window.addEventListener("resize", fitChart);
   $("longBtn").onclick=()=>openTrade(1);
   $("shortBtn").onclick=()=>openTrade(-1);
