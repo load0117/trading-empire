@@ -106,6 +106,10 @@
   .record.hidden{display:none}
   .record b{font-family:var(--mono); color:var(--gold)}
   .record .st{color:var(--purple)}
+  .share-btn{width:100%; font:800 12.5px/1 var(--sans); padding:11px; border-radius:11px; cursor:pointer;
+    background:linear-gradient(180deg,#3ff09a,#1fb96f); border:1px solid #35c07d; color:#06210f}
+  .share-btn.hidden{display:none}
+  .share-btn:active{transform:translateY(1px)}
 
   .goal-strip{font:600 12px/1.4 var(--sans); color:var(--dim); background:var(--panel2);
     border:1px solid var(--edge); border-radius:11px; padding:8px 12px; text-align:center}
@@ -350,6 +354,7 @@
 
   <div class="streak hidden" id="streak"></div>
   <div class="record hidden" id="record"></div>
+  <button class="share-btn hidden" id="shareBtn">🔗 내 기록 자랑하고 친구 부르기</button>
 
   <div class="goal-strip" id="goalStrip"></div>
 
@@ -844,10 +849,18 @@
       ? `🎯 <b>${a.name}</b> (${a.desc}) <span class="pg">${fmt(Math.min(a.need(),a.goal))}/${fmt(a.goal)}</span><span class="rw">${a.rt}</span>`
       : `🏆 모든 업적 달성!`;
     $("coachText").textContent = coach();
-    const rec=$("record");
-    if(S.bestTrade>0 || S.bestStreak>0 || S.bestRound>0){ rec.classList.remove("hidden");
-      rec.innerHTML=`🏆 한 방 <b>+${fmt(S.bestTrade)}</b> · 🏁 라운드 <b>+${fmt(S.bestRound)}</b> · 🔥 <span class="st">${S.bestStreak}연승</span>`;
-    } else rec.classList.add("hidden");
+    const rec=$("record"), hasRec=(S.bestTrade>0 || S.bestStreak>0 || S.bestRound>0);
+    rec.classList.toggle("hidden", !hasRec);
+    $("shareBtn").classList.toggle("hidden", !hasRec);
+    if(hasRec) rec.innerHTML=`🏆 한 방 <b>+${fmt(S.bestTrade)}</b> · 🏁 라운드 <b>+${fmt(S.bestRound)}</b> · 🔥 <span class="st">${S.bestStreak}연승</span>`;
+  }
+  // 바이럴: 기록 자랑 + 게임 링크 공유(유저가 유저를 데려옴 = 지속지출0 유입)
+  function shareBrag(){
+    const txt = `📈 트레이딩 제국 — 최고 한 방 +${fmt(S.bestTrade)}원 · ${S.bestStreak}연승! 너도 이겨봐 👉`;
+    const url = "https://load0117.github.io/trading-empire/";
+    if(navigator.share){ navigator.share({title:"트레이딩 제국", text:txt, url}).catch(()=>{}); }
+    else if(navigator.clipboard){ navigator.clipboard.writeText(txt+" "+url).then(()=>toast("📋 자랑 문구 복사됨! 붙여넣어 공유하세요")).catch(()=>toast(txt)); }
+    else toast(txt+" "+url);
   }
   // 지금 뭘 해야 하나 — 상태별 한 줄 안내(첫 사용자 이탈 방지)
   function coach(){
@@ -1108,6 +1121,7 @@
   $("pullBtn").onclick=bulkPull; $("reveal").onclick=closeReveal;
   [["pull1",1],["pull10",10],["pull100",100]].forEach(([id,v])=>{ $(id).onclick=()=>{ pullN=v; renderGacha(); }; });
   $("prestiBtn").onclick=prestige;
+  $("shareBtn").onclick=shareBrag;
   $("whale").onclick=(e)=>grabWhale(e);
   [["amt1",1],["amt10",10],["amt100",100],["amtMAX","MAX"]].forEach(([id,v])=>{ $(id).onclick=()=>{ buyAmt=v; renderBots(); }; });
   $("boostBtn").onclick=()=>{ if(!boostOn()) watchAd("boost"); };
