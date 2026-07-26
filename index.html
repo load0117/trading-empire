@@ -8,6 +8,24 @@
 <link rel="icon" href="icon.svg" />
 <link rel="apple-touch-icon" href="icon-192.png" />
 <link rel="manifest" href="manifest.webmanifest" />
+<!-- ▼▼▼ 측정(GA4): 아래 "G-XXXXXXXXXX" 딱 한 곳만 네 측정 ID로 바꾸면 끝 ▼▼▼ -->
+<script>
+  window.GA_ID = "G-56F1LY32MZ";   // ← GA4 측정 ID (analytics.google.com → 관리 → 데이터 스트림)
+  (function(){
+    if (window.GA_ID && !/X{4,}/.test(window.GA_ID)) {           // 아직 안 바꿨으면(=X 그대로) 로드 안 함 → 에러 0
+      var s = document.createElement("script"); s.async = true;
+      s.src = "https://www.googletagmanager.com/gtag/js?id=" + window.GA_ID;
+      document.head.appendChild(s);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function(){ dataLayer.push(arguments); };
+      gtag("js", new Date());
+      gtag("config", window.GA_ID);
+    }
+  })();
+  // 게임 어디서나 track("이벤트명",{...}) 호출 — GA 미설정이면 조용히 무시
+  window.track = function(name, params){ try{ if(window.gtag) gtag("event", name, params||{}); }catch(e){} };
+</script>
+<!-- ▲▲▲ -->
 <style>
   :root{
     color-scheme: dark;
@@ -613,6 +631,7 @@
     const dir = chg>=0 ? "🔺 롱 승" : "🔻 숏 승";
     toast(`🏁 라운드 종료! 지수 ${chg>=0?"+":""}${chg.toFixed(1)}% (${dir}) · 내 수익 ${MKT.roundPnl>=0?"+":""}${fmt(MKT.roundPnl)}원`);
     sfx(MKT.roundPnl>0?"epic":"pull");
+    track("round_finish", { pnl: Math.round(MKT.roundPnl), idx_change: +chg.toFixed(1) });
     MKT.roundPnl=0; MKT.roundOpen=MKT.price;
   }
   function renderRound(t){
@@ -749,11 +768,13 @@
       if(net+bonus>S.bestTrade) S.bestTrade=net+bonus;
       sfx(streak>=5?"legend":"epic"); flash("var(--green)"); spawnCoins(null, Math.min(4,1+Math.floor(streak/2)));
       toast(`💰 +${fmt(net+bonus)}원 청산 (수수료 -${fmt(fee)})${streak>1?` · 🔥${streak}연승`:""}`);
+      track("trade_close", { result:"win", net: Math.round(net+bonus), streak, lev: TR.lev });
     } else {
       const ret=Math.max(0, TR.stake+profit-fee); streak=0; S.money+=ret;
       MKT.roundPnl += ret-TR.stake;   // 손실도 라운드 수익에 반영(음수)
       sfx("crash"); flash("var(--red)"); shake();
       toast(`📉 ${fmt(net)}원 (수수료 -${fmt(fee)}) — 연승 리셋`);
+      track("trade_close", { result:"loss", lev: TR.lev });
     }
     S.trades++;
     TR.open=false; updateDesk(); renderHud();
@@ -856,6 +877,7 @@
   }
   // 바이럴: 기록 자랑 + 게임 링크 공유(유저가 유저를 데려옴 = 지속지출0 유입)
   function shareBrag(){
+    track("share_click", { best_trade: Math.round(S.bestTrade), best_streak: S.bestStreak });
     const txt = `📈 트레이딩 제국 — 최고 한 방 +${fmt(S.bestTrade)}원 · ${S.bestStreak}연승! 너도 이겨봐 👉`;
     const url = "https://load0117.github.io/trading-empire/";
     if(navigator.share){ navigator.share({title:"트레이딩 제국", text:txt, url}).catch(()=>{}); }
@@ -1110,7 +1132,7 @@
   if(had) grantOffline();
   if(rescued){ save(); setTimeout(()=>toast("💰 시드머니 2,000원 + 스캘핑 봇 3대 지급! 이제 굴려보세요"),500); }
   if(!S.seenTut) $("tutModal").hidden=false;   // 첫 실행(또는 튜토리얼 미시청) → 안내
-  $("tutClose").onclick=()=>{ S.seenTut=1; $("tutModal").hidden=true; save(); };
+  $("tutClose").onclick=()=>{ S.seenTut=1; $("tutModal").hidden=true; save(); track("tutorial_done"); };
   window.addEventListener("resize", fitChart);
   $("longBtn").onclick=()=>openTrade(1);
   $("shortBtn").onclick=()=>openTrade(-1);
