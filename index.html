@@ -407,7 +407,8 @@
 
   let S;
   const fresh = () => ({
-    money:100, owned:BOTS.map(()=>0), gachaMult:1, pulls:0,
+    // 시작부터 굴릴 자금 + 스타터 봇 1대(항상 수입이 들어와 "돈이 없다"는 막힘 방지)
+    money:2000, owned:BOTS.map((_,i)=> i===0?3:0), gachaMult:1, pulls:0,
     coll:{C:0,R:0,E:0,L:0}, fame:0, lastTs:now(), daily:{last:"",streak:0},
     boostUntil:0, freeGachaAt:0, ach:{}, endings:{}, trades:0, bestStreak:0, bestTrade:0, seenTut:0
   });
@@ -777,7 +778,7 @@
   function prestige(){
     const fg=fameGain(); if(fg<1) return;
     if(!confirm(`제국을 매각하고 환생합니다.\n명성 +${fg} (봇수입 영구 +${fg*15}%)\n봇과 자산은 초기화됩니다. 진행할까요?`)) return;
-    S.fame+=fg; S.money=100; S.owned=BOTS.map(()=>0); S.pulls=Math.max(0,S.pulls-3);
+    S.fame+=fg; S.money=1000; S.owned=BOTS.map((_,i)=> i===0?3:0); S.pulls=Math.max(0,S.pulls-3);
     if(TR.open){ TR.open=false; } streak=0;
     sfx("legend"); flash("var(--purple)"); save(); renderAll();
   }
@@ -859,9 +860,13 @@
   }
 
   const had=load();
+  // 파산/빈손 구제 — 봇 0대 & 현금 바닥이면 스타터 자금+봇 지급(0에서 못 벗어나는 상황 제거)
+  let rescued=false;
+  if(totalBots()===0 && S.money<100){ S.money=Math.max(S.money,2000); S.owned[0]=3; rescued=true; }
   buildBots(); fitChart(); renderAll();
   MKT.nextEv=now()+rnd(10000,18000);
   if(had) grantOffline();
+  if(rescued){ save(); setTimeout(()=>toast("💰 시드머니 2,000원 + 스캘핑 봇 3대 지급! 이제 굴려보세요"),500); }
   if(!S.seenTut) $("tutModal").hidden=false;   // 첫 실행(또는 튜토리얼 미시청) → 안내
   $("tutClose").onclick=()=>{ S.seenTut=1; $("tutModal").hidden=true; save(); };
   window.addEventListener("resize", fitChart);
