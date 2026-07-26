@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0e1420"/>
+  <rect width="512" height="512" rx="96" fill="url(#g)" opacity="0.25"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4fd6e0"/>
+      <stop offset="1" stop-color="#070a10"/>
+    </linearGradient>
+  </defs>
+  <!-- 상승 캔들 차트 -->
+  <g stroke-linecap="round">
+    <line x1="150" y1="150" x2="150" y2="360" stroke="#27e08a" stroke-width="10"/>
+    <rect x="128" y="230" width="44" height="90" rx="6" fill="#27e08a"/>
+    <line x1="256" y1="120" x2="256" y2="330" stroke="#27e08a" stroke-width="10"/>
+    <rect x="234" y="170" width="44" height="110" rx="6" fill="#27e08a"/>
+    <line x1="362" y1="95" x2="362" y2="300" stroke="#ffcb45" stroke-width="10"/>
+    <rect x="340" y="120" width="44" height="120" rx="6" fill="#ffcb45"/>
+  </g>
+  <text x="256" y="440" font-family="system-ui,sans-serif" font-size="72" font-weight="800" fill="#ffcb45" text-anchor="middle">₩</text>
+</svg>

@@ -1,0 +1,442 @@
+<meta charset="utf-8" />
+<title>캔들 로그 — 지를까 뺄까</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ── 네온 카지노 터미널 · 단일 다크 테마(의도적 커밋) ───────────────── */
+  :root{
+    --bg:#080b12; --panel:#0f1421; --panel2:#141b2c; --edge:#233149;
+    --ink:#e8eef7; --dim:#8798b5; --faint:#5b6b88;
+    --up:#27e08a; --down:#ff3b57; --gold:#ffcb45; --cyan:#4fd6e0;
+    --shadow:0 20px 60px rgba(0,0,0,.55);
+    --mono:"SF Mono",ui-monospace,"Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #12203a 0%, transparent 60%),
+      var(--bg);
+    color:var(--ink); font-family:var(--sans);
+    display:flex; align-items:center; justify-content:center;
+    padding:16px; min-height:100dvh; overflow-x:hidden;
+  }
+  .machine{
+    position:relative; width:min(460px,100%);
+    background:linear-gradient(180deg,var(--panel),#0b1019);
+    border:1px solid var(--edge); border-radius:22px;
+    box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.04);
+    padding:20px; overflow:hidden;
+  }
+  .machine::before{ /* scanline atmosphere */
+    content:""; position:absolute; inset:0; pointer-events:none; opacity:.05;
+    background:repeating-linear-gradient(0deg,#fff 0 1px,transparent 1px 3px);
+    mix-blend-mode:overlay;
+  }
+  .top{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .brand{font:800 15px/1 var(--sans); letter-spacing:.5px}
+  .brand b{color:var(--gold)}
+  .round-chip{
+    font:700 12px/1 var(--mono); color:var(--cyan);
+    border:1px solid var(--edge); border-radius:999px; padding:6px 10px;
+    background:var(--panel2); letter-spacing:.5px;
+  }
+
+  /* 목표 진행 바 */
+  .goal{margin:16px 0 6px}
+  .goal .lab{display:flex; justify-content:space-between; font:600 11px/1 var(--sans);
+    color:var(--dim); letter-spacing:.4px; margin-bottom:6px; text-transform:uppercase}
+  .goal .lab .safe{color:var(--up); opacity:0; transition:opacity .3s}
+  .goal.reached .lab .safe{opacity:1}
+  .bar{height:10px; background:#0a0e17; border:1px solid var(--edge);
+    border-radius:999px; overflow:hidden; position:relative}
+  .bar > i{display:block; height:100%; width:0%;
+    background:linear-gradient(90deg,var(--cyan),var(--up)); transition:width .45s cubic-bezier(.2,.8,.2,1)}
+  .goal.reached .bar > i{background:linear-gradient(90deg,var(--up),#9dffcf)}
+
+  /* 히어로 — 배수 + 실시간 청산 금액 */
+  .hero{
+    margin:14px 0; padding:22px 14px 18px; text-align:center;
+    background:radial-gradient(120% 120% at 50% 0%, #16233d 0%, var(--panel2) 70%);
+    border:1px solid var(--edge); border-radius:16px; position:relative;
+  }
+  .mult{font:800 68px/.9 var(--mono); letter-spacing:-1px;
+    color:var(--ink); text-shadow:0 0 24px rgba(79,214,224,.25); font-variant-numeric:tabular-nums}
+  .mult small{font-size:30px; color:var(--dim); font-weight:700}
+  .cash-line{margin-top:12px; font:600 13px/1 var(--sans); color:var(--dim)}
+  .cash-amt{display:block; margin-top:4px; font:800 26px/1 var(--mono);
+    color:var(--gold); font-variant-numeric:tabular-nums; text-shadow:0 0 18px rgba(255,203,69,.25)}
+  .stake{margin-top:8px; font:500 11px/1 var(--sans); color:var(--faint)}
+
+  /* 위험 — 계산이 아니라 느낌 */
+  .risk{margin:14px 0}
+  .risk .head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:7px}
+  .risk .head .t{font:600 11px/1 var(--sans); letter-spacing:.5px; color:var(--dim); text-transform:uppercase}
+  .risk .head .word{font:800 15px/1 var(--sans)}
+  .rbar{height:16px; border-radius:999px; overflow:hidden; position:relative;
+    background:#0a0e17; border:1px solid var(--edge)}
+  .rbar > i{position:absolute; left:0; top:0; bottom:0; width:15%; border-radius:999px;
+    transition:width .45s cubic-bezier(.2,.8,.2,1), background .4s ease, box-shadow .4s ease}
+  .risk .sub{margin-top:6px; font:500 11px/1.4 var(--sans); color:var(--faint); text-align:center}
+  .risk .sub b{color:var(--up)} .risk .sub i{color:var(--down); font-style:normal}
+
+  .shield{margin:10px 0 2px; text-align:center; font:700 12px/1 var(--sans); color:var(--cyan); min-height:15px}
+  .shield.off{color:var(--faint)}
+
+  /* 버튼 */
+  .controls{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px}
+  button{font:800 16px/1 var(--sans); letter-spacing:.3px; color:var(--ink);
+    border:1px solid var(--edge); border-radius:14px; padding:16px 12px; cursor:pointer;
+    background:var(--panel2); transition:transform .08s, box-shadow .2s, filter .2s}
+  button:active{transform:translateY(2px)}
+  button:focus-visible{outline:3px solid var(--cyan); outline-offset:2px}
+  button:disabled{opacity:.4; cursor:not-allowed}
+  .btn-hold{background:linear-gradient(180deg,#123a2a,#0d2a1e); border-color:#1c6d49; color:#b9ffdd}
+  .btn-hold b{display:block; font-size:11px; font-weight:600; color:#63d6a1; margin-top:3px}
+  .btn-cash{background:linear-gradient(180deg,#3a3212,#2a2410); border-color:#8a6d1e; color:#ffe6a3}
+  .btn-cash b{display:block; font-size:11px; font-weight:600; color:#d6b45a; margin-top:3px}
+  .btn-hold:hover{filter:brightness(1.15); box-shadow:0 0 24px rgba(39,224,138,.25)}
+  .btn-cash:hover{filter:brightness(1.15); box-shadow:0 0 24px rgba(255,203,69,.25)}
+
+  .log{margin-top:14px; height:34px; display:flex; align-items:center; justify-content:center;
+    font:600 13px/1 var(--sans); color:var(--dim); transition:color .2s}
+
+  /* 오버레이(인트로/상점/결과) */
+  .overlay{position:absolute; inset:0; background:rgba(6,9,16,.92); backdrop-filter:blur(3px);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:26px; gap:14px; z-index:5}
+  .overlay[hidden]{display:none}
+  .overlay h1{font:800 26px/1.1 var(--sans); letter-spacing:.3px}
+  .overlay h1 b{color:var(--gold)}
+  .overlay p{font:500 13px/1.6 var(--sans); color:var(--dim); max-width:320px}
+  .how{display:grid; gap:8px; text-align:left; width:100%; max-width:320px; margin:2px 0}
+  .how div{display:flex; gap:10px; align-items:flex-start; font:500 12.5px/1.45 var(--sans); color:var(--ink)}
+  .how div span{flex:0 0 22px; height:22px; border-radius:7px; background:var(--panel2);
+    border:1px solid var(--edge); color:var(--cyan); font:800 12px/22px var(--mono); text-align:center}
+  .big{font:800 17px/1 var(--sans); padding:16px 30px; border-radius:14px;
+    background:linear-gradient(180deg,#1c6d49,#12482f); border-color:#27e08a; color:#c7ffe4}
+  .big:hover{filter:brightness(1.15); box-shadow:0 0 30px rgba(39,224,138,.35)}
+
+  /* 상점 카드 */
+  .shop-cards{display:grid; gap:10px; width:100%; max-width:340px}
+  .card{display:flex; gap:12px; align-items:center; text-align:left; padding:12px 14px;
+    background:var(--panel2); border:1px solid var(--edge); border-radius:14px; cursor:pointer;
+    transition:transform .1s, box-shadow .2s, border-color .2s}
+  .card:hover{transform:translateY(-2px); border-color:var(--cyan); box-shadow:0 0 22px rgba(79,214,224,.18)}
+  .card:disabled{opacity:.4; cursor:not-allowed; transform:none; box-shadow:none}
+  .card .ic{flex:0 0 40px; height:40px; border-radius:10px; display:grid; place-items:center;
+    font-size:20px; background:#0a0e17; border:1px solid var(--edge)}
+  .card .body{flex:1}
+  .card .body .n{font:800 14px/1 var(--sans)} .card .body .n em{font-style:normal; color:var(--gold); font-size:12px; margin-left:6px}
+  .card .body .d{font:500 11.5px/1.4 var(--sans); color:var(--dim); margin-top:4px}
+  .stat{display:flex; gap:16px; justify-content:center; font:700 13px/1 var(--mono); color:var(--dim); margin-top:2px}
+  .stat b{color:var(--gold)}
+
+  canvas.fx{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:8}
+  .shake{animation:shake .4s}
+  @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
+    30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
+  .flash-up{animation:fup .35s} @keyframes fup{0%{box-shadow:0 0 0 0 rgba(39,224,138,.5) inset}100%{box-shadow:0 0 0 40px rgba(39,224,138,0) inset}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<div class="machine" id="machine">
+  <canvas class="fx" id="fx"></canvas>
+
+  <div class="top">
+    <div class="brand">캔들 로그 <b>◆</b> <span style="color:var(--dim);font-weight:600">지를까 뺄까</span></div>
+    <div class="round-chip" id="roundChip">R1 / 8</div>
+  </div>
+
+  <div class="goal" id="goal">
+    <div class="lab"><span>이번 판 목표 배수</span><span class="safe">✓ 안전선 통과 — 이제부터 보너스</span></div>
+    <div class="bar"><i id="goalFill"></i></div>
+  </div>
+
+  <div class="hero" id="hero">
+    <div class="mult" id="mult">×1.00</div>
+    <div class="cash-line">지금 청산하면
+      <span class="cash-amt" id="cashAmt">+10,000원</span>
+    </div>
+    <div class="stake">판돈 10,000원 · 목표 <span id="targetTxt">×1.30</span></div>
+  </div>
+
+  <div class="risk">
+    <div class="head">
+      <span class="t">다음 봉 위험</span>
+      <span class="word" id="riskWord">안전</span>
+    </div>
+    <div class="rbar"><i id="riskFill"></i></div>
+    <div class="sub" id="riskSub"><b>▲ 오를 확률 85%</b> · <i>▼ 터질 확률 15%</i></div>
+  </div>
+
+  <div class="shield" id="shield">🛡 손절 1회 — 한 번은 터져도 버틴다</div>
+
+  <div class="controls">
+    <button class="btn-hold" id="btnHold">홀드 <b>더 지른다 ▲</b></button>
+    <button class="btn-cash" id="btnCash">청산 <b>챙기고 통과 ✓</b></button>
+  </div>
+
+  <div class="log" id="log">엔터=홀드 · 스페이스=청산</div>
+
+  <!-- 인트로 -->
+  <div class="overlay" id="introOv">
+    <h1>캔들 로그 <b>◆</b></h1>
+    <p>배수를 키우는 도박. <b style="color:var(--ink)">언제 멈추느냐</b>가 전부다.</p>
+    <div class="how">
+      <div><span>1</span><div><b>홀드</b>하면 배수가 오른다 — 대신 <i style="color:var(--down);font-style:normal">터질 위험</i>도 커진다.</div></div>
+      <div><span>2</span><div>목표 배수를 넘기면 <b style="color:var(--up)">안전</b>. 청산하면 그 판 통과.</div></div>
+      <div><span>3</span><div>더 지르면 상점 돈이 늘지만, <i style="color:var(--down);font-style:normal">터지면 전부 잃고 끝</i>이다.</div></div>
+    </div>
+    <p style="color:var(--faint)">위험 막대가 빨개질수록 터질 확률이 높다. 계산 말고 감으로.</p>
+    <button class="big" id="startBtn">시작</button>
+  </div>
+
+  <!-- 상점 -->
+  <div class="overlay" id="shopOv" hidden>
+    <h1>🏪 상점</h1>
+    <div class="stat">보유 칩 <b id="shopChips">0</b></div>
+    <p style="margin:-4px 0 2px">확률을 내 쪽으로 트는 카드를 산다.</p>
+    <div class="shop-cards" id="shopCards"></div>
+    <button class="big" id="shopNext" style="background:linear-gradient(180deg,#2a2410,#1c1a0c);border-color:var(--gold);color:#ffe6a3">다음 판으로 ▸</button>
+  </div>
+
+  <!-- 결과 -->
+  <div class="overlay" id="overOv" hidden>
+    <h1 id="overTitle">💥</h1>
+    <p id="overMsg"></p>
+    <div class="stat" id="overStat"></div>
+    <button class="big" id="againBtn">다시</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const fmt = n => Math.round(n).toLocaleString("ko-KR");
+  const STAKE = 10000, ROUNDS = 8;
+
+  // ── 카드(확률 조작기) ──────────────────────────────────────────
+  const CARD_POOL = [
+    {id:"stop",  ic:"🛡", n:"손절",     jrgn:"스톱로스",   cost:5, d:"터져도 한 번은 버틴다 (판마다 1회)"},
+    {id:"info",  ic:"👁", n:"정보",     jrgn:"내부자 정보", cost:5, d:"위험 막대가 흔들림 없이 정확해진다"},
+    {id:"luck",  ic:"🍀", n:"행운의 촛대", jrgn:"엣지",     cost:7, d:"오를 확률에 항상 +7%"},
+    {id:"cool",  ic:"🧊", n:"냉정",     jrgn:"감정 통제",  cost:6, d:"홀드해도 위험이 덜 오른다"},
+    {id:"lev",   ic:"⚡", n:"레버리지",  jrgn:"2배",        cost:5, d:"배수가 더 크게 오른다 · 위험도 더 빨리"},
+    {id:"insure",ic:"💰", n:"분할청산",  jrgn:"부분 익절",  cost:4, d:"청산 금액에 +20% 보너스"},
+  ];
+  const has = id => G.deck.includes(id);
+
+  // ── 상태 ───────────────────────────────────────────────────────
+  let G = {};
+  function newGame(){
+    G = { round:1, chips:0, deck:["stop"], mult:1, up:.85, stop:0, over:false, busy:false };
+    startRound();
+  }
+  function target(r){ return +(1.30 + .25*(r-1)).toFixed(2); }
+  function startRound(){
+    G.mult = 1;
+    G.up = Math.min(.95, .85 + (has("luck") ? .07 : 0));
+    G.stop = has("stop") ? 1 : 0;
+    G.step = has("lev") ? .55 : .35;
+    G.decay = (has("lev") ? .09 : .06) * (has("cool") ? .5 : 1);
+    G.tgt = target(G.round);
+    G.over = false; G.busy = false;
+    hideOverlays(); render(true);
+    say("지를까, 뺄까?");
+  }
+
+  // ── 렌더 ───────────────────────────────────────────────────────
+  const riskWord = up =>
+    up>=.80 ? ["안전","var(--up)"] :
+    up>=.65 ? ["슬슬 위험","var(--gold)"] :
+    up>=.50 ? ["위험","#ff8a3d"] : ["도박","var(--down)"];
+
+  function render(animate){
+    $("roundChip").textContent = `R${G.round} / ${ROUNDS}`;
+    $("mult").innerHTML = `×${G.mult.toFixed(2)}`;
+    const reached = G.mult >= G.tgt;
+    $("goal").classList.toggle("reached", reached);
+    $("goalFill").style.width = Math.min(100, G.mult/G.tgt*100) + "%";
+    $("targetTxt").textContent = "×"+G.tgt.toFixed(2);
+
+    const bonus = has("insure") ? 1.2 : 1;
+    const payout = G.mult*STAKE*bonus;
+    countTo($("cashAmt"), payout, "+", "원");
+
+    // 위험: 정보 없으면 표시에 ±3% 노이즈(감으로 읽게)
+    const shownUp = has("info") ? G.up : Math.max(.05,Math.min(.97, G.up + (Math.sin(G.mult*99)*.03)));
+    const dn = 1-shownUp;
+    const [w,c] = riskWord(shownUp);
+    // 위험 막대: 위험(=터질 확률)이 클수록 길게 차오르고 색이 빨개진다 — 감으로 읽게
+    const fill = $("riskFill");
+    fill.style.width = Math.max(6, Math.round(dn*100)) + "%";
+    fill.style.background = c;
+    fill.style.boxShadow = `0 0 14px ${c}66`;
+    const rw = $("riskWord"); rw.textContent = w + (has("info")?"":" 쯤"); rw.style.color = c;
+    $("riskSub").innerHTML = `<b>▲ 오를 확률 ${Math.round(shownUp*100)}%</b> · <i>▼ 터질 확률 ${Math.round(dn*100)}%</i>`;
+
+    const sh = $("shield");
+    if(G.stop>0){ sh.className="shield"; sh.textContent="🛡 손절 1회 — 한 번은 터져도 버틴다"; }
+    else if(has("stop")){ sh.className="shield off"; sh.textContent="🛡 손절 소진됨"; }
+    else { sh.className="shield off"; sh.textContent=""; }
+
+    $("btnCash").disabled = G.busy;
+    $("btnHold").disabled = G.busy;
+    // 청산 버튼 라벨: 목표 넘었으면 '통과', 아니면 '아직 목표 미달' 경고
+    $("btnCash").querySelector("b").textContent = reached ? "챙기고 통과 ✓" : "아직 목표 미달 ✗";
+  }
+
+  function countTo(el, val, pre, suf){
+    const from = +el.dataset.v || 0; el.dataset.v = val;
+    const t0 = performance.now(), dur = 350;
+    const tick = t => { const k = Math.min(1,(t-t0)/dur);
+      const v = from + (val-from)*(1-(1-k)*(1-k));
+      el.textContent = (pre||"") + fmt(v) + (suf||"");
+      if(k<1) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }
+  function say(t,color){ const l=$("log"); l.textContent=t; l.style.color=color||"var(--dim)"; }
+
+  // ── 액션 ───────────────────────────────────────────────────────
+  function hold(){
+    if(G.busy||G.over) return; G.busy=true;
+    sfx("tick", .3 + Math.min(.7,(G.mult-1)*.15)); // 배수 오를수록 높은음
+    const real = Math.max(.05, Math.min(.97, G.up));
+    const win = Math.random() < real;
+    $("btnHold").disabled=$("btnCash").disabled=true;
+    setTimeout(()=>{
+      if(win){
+        G.mult += G.step; G.step += .15; G.up -= G.decay;
+        flashUp(); sfx("up", .5+Math.min(1,(G.mult-1)*.2));
+        say(`▲ 상승! ×${G.mult.toFixed(2)}`, "var(--up)");
+        G.busy=false; render(true);
+      } else if(G.stop>0){
+        G.stop--; G.up = Math.min(.9, G.up+.15);
+        sfx("save"); say("🛡 손절 발동! 터질 뻔한 걸 막았다", "var(--cyan)");
+        G.busy=false; render(true);
+      } else {
+        bust();
+      }
+    }, 260);
+  }
+
+  function cash(){
+    if(G.busy||G.over) return;
+    const bonus = has("insure") ? 1.2 : 1;
+    const payout = G.mult*bonus;
+    if(payout < G.tgt){
+      // 목표 미달 청산 = 실패
+      G.over=true; sfx("bust");
+      gameOver(false, `×${payout.toFixed(2)} — 목표 ×${G.tgt.toFixed(2)}에 못 미쳤다.`);
+      return;
+    }
+    G.busy=true; sfx("cash"); confetti();
+    const overflow = Math.max(0, payout - G.tgt);
+    const gain = Math.round(5 + G.round*2 + overflow*25);
+    G.chips += gain;
+    say(`💰 청산! +${fmt(payout*STAKE*1)}원 · 칩 +${gain}`, "var(--gold)");
+    setTimeout(()=>{ G.round++; (G.round>ROUNDS) ? win() : openShop(); }, 900);
+  }
+
+  function bust(){
+    G.over=true; sfx("bust");
+    $("machine").classList.remove("shake"); void $("machine").offsetWidth; $("machine").classList.add("shake");
+    say("💥 터졌다! 판돈 전부 날림.", "var(--down)");
+    setTimeout(()=>gameOver(false, "욕심이 화를 불렀다. 목표를 넘겼으면 청산했어야."), 500);
+  }
+
+  // ── 상점 ───────────────────────────────────────────────────────
+  function openShop(){
+    const pool = CARD_POOL.slice().sort(()=>Math.random()-.5).slice(0,3);
+    const wrap = $("shopCards"); wrap.innerHTML="";
+    $("shopChips").textContent = G.chips;
+    pool.forEach(c=>{
+      const b=document.createElement("button"); b.className="card";
+      b.disabled = c.cost>G.chips;
+      b.innerHTML=`<div class="ic">${c.ic}</div><div class="body">
+        <div class="n">${c.n}<em>${c.cost}칩</em></div><div class="d">${c.d}</div></div>`;
+      b.onclick=()=>{ if(c.cost>G.chips) return; G.chips-=c.cost; G.deck.push(c.id);
+        sfx("buy"); openShop(); };
+      wrap.appendChild(b);
+    });
+    show("shopOv");
+  }
+
+  // ── 종료 ───────────────────────────────────────────────────────
+  function gameOver(won, msg){
+    $("overTitle").textContent = won ? "🏆" : "💥";
+    $("overMsg").textContent = msg;
+    $("overStat").innerHTML = `도달 <b>R${G.round}</b> / ${ROUNDS} &nbsp;·&nbsp; 보유 칩 <b>${G.chips}</b>`;
+    $("againBtn").textContent = won ? "다시 도전" : "다시";
+    show("overOv");
+  }
+  function win(){ sfx("cash"); confetti(); confetti();
+    $("overTitle").textContent="🏆"; $("overMsg").textContent="8판 완주! 언제 멈출지 아는 자.";
+    $("overStat").innerHTML=`전 판 돌파 &nbsp;·&nbsp; 보유 칩 <b>${G.chips}</b>`;
+    $("againBtn").textContent="다시"; show("overOv"); }
+
+  // ── 오버레이 헬퍼 ──────────────────────────────────────────────
+  function show(id){ ["introOv","shopOv","overOv"].forEach(o=>$(o).hidden = o!==id); }
+  function hideOverlays(){ ["introOv","shopOv","overOv"].forEach(o=>$(o).hidden=true); }
+
+  // ── 사운드 (Web Audio, 무에셋 합성) ────────────────────────────
+  let AC;
+  function sfx(type, p){
+    try{ AC = AC || new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+    const t=AC.currentTime, o=AC.createOscillator(), g=AC.createGain();
+    o.connect(g); g.connect(AC.destination);
+    const set=(wave,f,vol,dur)=>{ o.type=wave; o.frequency.setValueAtTime(f,t);
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.0001,t+dur); o.start(t); o.stop(t+dur); };
+    if(type==="tick") set("square", 200+ (p||0)*400, .04, .05);
+    else if(type==="up"){ o.type="triangle"; o.frequency.setValueAtTime(400+(p||0)*260,t);
+      o.frequency.exponentialRampToValueAtTime(760+(p||0)*300,t+.12); g.gain.setValueAtTime(.12,t);
+      g.gain.exponentialRampToValueAtTime(.0001,t+.16); o.start(t); o.stop(t+.16); }
+    else if(type==="save"){ set("sine", 520, .12, .18); }
+    else if(type==="cash"){ // 상승 3음 딸깍
+      [523,659,880].forEach((f,i)=>{ const oo=AC.createOscillator(),gg=AC.createGain();
+        oo.connect(gg); gg.connect(AC.destination); oo.type="triangle"; oo.frequency.setValueAtTime(f,t+i*.08);
+        gg.gain.setValueAtTime(.14,t+i*.08); gg.gain.exponentialRampToValueAtTime(.0001,t+i*.08+.22);
+        oo.start(t+i*.08); oo.stop(t+i*.08+.22); }); }
+    else if(type==="buy"){ set("square", 660, .08, .09); }
+    else if(type==="bust"){ o.type="sawtooth"; o.frequency.setValueAtTime(180,t);
+      o.frequency.exponentialRampToValueAtTime(40,t+.5); g.gain.setValueAtTime(.2,t);
+      g.gain.exponentialRampToValueAtTime(.0001,t+.5); o.start(t); o.stop(t+.5); }
+  }
+
+  // ── 이펙트 ─────────────────────────────────────────────────────
+  function flashUp(){ const h=$("hero"); h.classList.remove("flash-up"); void h.offsetWidth; h.classList.add("flash-up"); }
+  const cv=$("fx"), cx=cv.getContext("2d"); let parts=[];
+  function sizeCanvas(){ const r=$("machine").getBoundingClientRect(); cv.width=r.width; cv.height=r.height; }
+  function confetti(){
+    sizeCanvas();
+    for(let i=0;i<70;i++) parts.push({x:cv.width/2, y:cv.height*.38,
+      vx:(Math.random()-.5)*9, vy:-Math.random()*11-3, g:.35, life:60+Math.random()*30,
+      c:["#ffcb45","#27e08a","#4fd6e0","#fff"][i%4], s:3+Math.random()*4});
+    if(!raf) loop();
+  }
+  let raf=0;
+  function loop(){ raf=requestAnimationFrame(loop); cx.clearRect(0,0,cv.width,cv.height);
+    parts=parts.filter(p=>p.life>0);
+    parts.forEach(p=>{ p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.life--;
+      cx.globalAlpha=Math.max(0,p.life/40); cx.fillStyle=p.c; cx.fillRect(p.x,p.y,p.s,p.s); });
+    if(parts.length===0){ cancelAnimationFrame(raf); raf=0; cx.clearRect(0,0,cv.width,cv.height); }
+  }
+
+  // ── 배선 ───────────────────────────────────────────────────────
+  $("btnHold").onclick=hold; $("btnCash").onclick=cash;
+  $("startBtn").onclick=()=>{ newGame(); };
+  $("shopNext").onclick=()=>startRound();
+  $("againBtn").onclick=()=>{ newGame(); };
+  addEventListener("keydown",e=>{
+    if(!$("introOv").hidden && e.key==="Enter"){ newGame(); return; }
+    if(!$("shopOv").hidden && e.key==="Enter"){ startRound(); return; }
+    if(!$("overOv").hidden && e.key==="Enter"){ newGame(); return; }
+    if(G.over||G.busy) return;
+    if(e.key==="Enter"){ e.preventDefault(); hold(); }
+    if(e.key===" "){ e.preventDefault(); cash(); }
+  });
+  addEventListener("resize", sizeCanvas);
+})();
+</script>

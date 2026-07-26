@@ -1,0 +1,674 @@
+<meta charset="utf-8" />
+<title>트레이딩 제국 — 방치형</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0e1420" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="트레이딩 제국" />
+<link rel="icon" href="icon.svg" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="manifest" href="manifest.webmanifest" />
+<style>
+  :root{
+    color-scheme: dark;   /* 이 게임은 다크 고정 — 뷰어 라이트 테마가 글자색을 검게 덮지 못하게 */
+    --bg:#070a10; --panel:#0e1420; --panel2:#151d2e; --edge:#243247;
+    --ink:#eaf1fb; --dim:#b6c4dc; --faint:#93a4c0;
+    --gold:#ffcb45; --green:#27e08a; --cyan:#4fd6e0; --pink:#ff5c9d; --purple:#b98bff;
+    --mono:"SF Mono",ui-monospace,"Cascadia Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:radial-gradient(1000px 500px at 50% -10%,#12203a 0,transparent 60%),var(--bg);
+    color:var(--ink); font-family:var(--sans); min-height:100dvh; display:flex; justify-content:center;
+    padding:14px; overflow-x:hidden}
+  .app{width:min(480px,100%); display:flex; flex-direction:column; gap:12px; color:var(--ink)}
+
+  /* 헤더 — 총자산 + 초당수입 */
+  .hud{position:relative; background:linear-gradient(180deg,var(--panel),#0b1017);
+    border:1px solid var(--edge); border-radius:18px; padding:18px 18px 16px; text-align:center;
+    box-shadow:0 16px 44px rgba(0,0,0,.5)}
+  .hud .cap{font:600 11px/1 var(--sans); letter-spacing:1px; color:var(--dim); text-transform:uppercase}
+  .hud .money{font:800 40px/1 var(--mono); color:var(--gold); letter-spacing:-.5px;
+    font-variant-numeric:tabular-nums; text-shadow:0 0 24px rgba(255,203,69,.22); margin-top:6px}
+  .hud .rate{margin-top:8px; font:700 14px/1 var(--sans); color:var(--green)}
+  .hud .rate b{font-family:var(--mono)}
+  .hud .presti{position:absolute; top:14px; right:14px; font:700 11px/1 var(--mono); color:var(--purple);
+    border:1px solid #3a2b57; background:#150f24; border-radius:999px; padding:5px 9px}
+
+  /* 직접 트레이딩 (탭 온램프) */
+  .tap-earn{position:relative; margin-top:14px; width:100%; font:800 15px/1 var(--sans); color:#0a1508;
+    padding:13px; border-radius:13px; cursor:pointer; border:1px solid #35c07d;
+    background:linear-gradient(180deg,#3ff09a,#1fb96f); box-shadow:0 6px 18px rgba(39,224,138,.25);
+    transition:transform .06s, filter .15s}
+  .tap-earn:active{transform:translateY(2px) scale(.99)}
+  .tap-earn:hover{filter:brightness(1.06)}
+  .tap-earn small{font-family:var(--mono); font-weight:800}
+  .tap-earn .float{position:absolute; left:50%; top:-6px; transform:translateX(-50%);
+    font:800 15px/1 var(--mono); color:var(--gold); pointer-events:none; animation:floatUp .75s ease-out forwards}
+  @keyframes floatUp{to{opacity:0; transform:translate(-50%,-32px)}}
+
+  .hud .rate.boosted b, .hud .rate.boosted{color:var(--gold)}
+
+  /* 다음 목표 스트립 */
+  .goal-strip{font:600 12.5px/1.45 var(--sans); color:var(--dim); background:var(--panel2);
+    border:1px solid var(--edge); border-radius:11px; padding:9px 12px; text-align:center}
+  .goal-strip b{color:var(--ink)}
+  .goal-strip .pg{font-family:var(--mono); color:var(--cyan); font-weight:800; margin-left:4px}
+  .goal-strip .rw{display:block; margin-top:2px; color:var(--gold); font-weight:700}
+
+  /* 리워드 광고 부스트 버튼 */
+  .boosts{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .boost-btn{font:800 12.5px/1.2 var(--sans); padding:12px 8px; border-radius:12px; cursor:pointer;
+    color:#1a1206; border:1px solid var(--gold); background:linear-gradient(180deg,#ffd968,#f0b429);
+    transition:filter .12s, box-shadow .2s}
+  .boost-btn:hover{filter:brightness(1.07); box-shadow:0 0 18px rgba(255,203,69,.3)}
+  .boost-btn.alt{background:linear-gradient(180deg,#8fd6ff,#4aa8e0); border-color:#4fd6e0; color:#06202e}
+  .boost-btn.active{background:linear-gradient(180deg,#3ff09a,#1fb96f); border-color:#35c07d; color:#0a1508;
+    animation:pulse 1.6s ease-in-out infinite}
+  .boost-btn:disabled{opacity:.5; cursor:not-allowed; filter:none; box-shadow:none}
+
+  /* 광고 진행바 */
+  .adbar{height:12px; background:#0a0e17; border:1px solid var(--edge); border-radius:999px; overflow:hidden; margin:14px 0}
+  .adbar > i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--cyan),var(--gold))}
+  @keyframes adbar{from{width:0}to{width:100%}}
+
+  /* 토스트 */
+  .toast{position:fixed; left:50%; bottom:24px; transform:translate(-50%,20px); z-index:40;
+    background:linear-gradient(180deg,#1c2740,#0d1526); border:1px solid var(--gold); color:var(--ink);
+    font:700 13px/1.3 var(--sans); padding:12px 18px; border-radius:12px; max-width:88%; text-align:center;
+    opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  .toast.show{opacity:1; transform:translate(-50%,0)}
+
+  /* 출석 버튼 */
+  .daily-btn{width:100%; font:800 14px/1 var(--sans); color:#1a1206; padding:13px; border-radius:13px;
+    cursor:pointer; border:1px solid var(--gold); background:linear-gradient(180deg,#ffd968,#f0b429);
+    box-shadow:0 0 22px rgba(255,203,69,.3); animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 14px rgba(255,203,69,.25)}50%{box-shadow:0 0 30px rgba(255,203,69,.5)}}
+
+  /* 구매 수량 토글 */
+  .buyamt{display:flex; align-items:center; gap:6px}
+  .buyamt .lbl{font:700 11px/1 var(--sans); color:var(--dim); margin-right:2px}
+  .buyamt button{flex:1; font:800 13px/1 var(--mono); padding:9px 4px; border-radius:10px; cursor:pointer;
+    background:var(--panel2); border:1px solid var(--edge); color:var(--dim); transition:all .12s}
+  .buyamt button.on{color:#0a1508; background:linear-gradient(180deg,#3ff09a,#1fb96f); border-color:#35c07d}
+
+  /* 시너지 스트립 */
+  .syn{display:grid; grid-template-columns:1fr 1fr; gap:7px}
+  .syn-chip{position:relative; padding:9px 11px; border-radius:11px; background:var(--panel2);
+    border:1px solid var(--edge); opacity:.5}
+  .syn-chip.on{opacity:1; border-color:#7a5bbf; background:linear-gradient(180deg,#1c1630,#141020)}
+  .syn-chip .sn{display:block; font:800 12px/1 var(--sans); color:var(--ink)}
+  .syn-chip.on .sn{color:var(--purple)}
+  .syn-chip .sv{position:absolute; top:9px; right:11px; font:800 12px/1 var(--mono); color:var(--faint)}
+  .syn-chip.on .sv{color:var(--purple)}
+  .syn-chip .sd{display:block; font:600 11px/1.35 var(--sans); color:var(--dim); margin-top:4px}
+
+  .tabs{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .tab{font:800 14px/1 var(--sans); padding:12px; border-radius:12px; cursor:pointer;
+    background:var(--panel2); border:1px solid var(--edge); color:var(--dim)}
+  .tab.on{color:var(--ink); border-color:var(--cyan); box-shadow:0 0 18px rgba(79,214,224,.15)}
+  .tab b{color:var(--gold)}
+
+  .panel{background:var(--panel); border:1px solid var(--edge); border-radius:16px; padding:12px;
+    display:flex; flex-direction:column; gap:8px}
+
+  /* 봇 목록 */
+  .bot{display:flex; align-items:center; gap:11px; padding:11px 12px; border-radius:12px;
+    background:var(--panel2); border:1px solid var(--edge); text-align:left; cursor:pointer; width:100%;
+    transition:transform .07s, border-color .2s, box-shadow .2s, filter .2s}
+  .bot:active{transform:translateY(1px)}
+  .bot:disabled{opacity:.5; cursor:not-allowed}
+  .bot.afford{border-color:#2b6d4d}
+  .bot.afford:hover{filter:brightness(1.1); box-shadow:0 0 20px rgba(39,224,138,.18)}
+  .bot .ic{flex:0 0 42px; height:42px; border-radius:11px; display:grid; place-items:center; font-size:22px;
+    background:#0a0f1a; border:1px solid var(--edge)}
+  .bot .mid{flex:1; min-width:0}
+  .bot .mid .n{font:800 14px/1 var(--sans); color:var(--ink)} .bot .mid .n em{font-style:normal;color:var(--gold);font-size:11px;margin-left:6px;font-family:var(--mono)}
+  .bot .mid .n .ms{font:800 11px/1 var(--mono); color:var(--cyan); margin-left:6px}
+  .bot .mid .sub{font:600 12px/1.35 var(--sans); color:var(--dim); margin-top:4px}
+  .bot .mid .sub b{color:var(--green); font-family:var(--mono)}
+  .bot .buy{flex:0 0 auto; text-align:right}
+  .bot .buy .cost{font:800 13px/1 var(--mono); color:var(--gold)}
+  .bot .buy .cnt{font:700 11px/1 var(--mono); color:var(--faint); margin-top:4px}
+  .bot.afford .buy .cost{color:var(--green)}
+
+  /* 가챠 */
+  .gacha-hero{text-align:center; padding:8px 4px 4px}
+  .gacha-hero .mult{font:800 30px/1 var(--mono); color:var(--purple);
+    text-shadow:0 0 22px rgba(185,139,255,.3)}
+  .gacha-hero .cap{font:600 11px/1 var(--sans); color:var(--dim); letter-spacing:.5px; text-transform:uppercase; margin-bottom:4px}
+  .pull-btn{font:800 17px/1 var(--sans); padding:16px; border-radius:14px; cursor:pointer; width:100%;
+    background:linear-gradient(180deg,#3a2357,#241338); border:1px solid var(--purple); color:#e9d6ff;
+    transition:filter .15s, box-shadow .2s, transform .07s}
+  .pull-btn:active{transform:translateY(2px)}
+  .pull-btn:hover{filter:brightness(1.15); box-shadow:0 0 26px rgba(185,139,255,.3)}
+  .pull-btn:disabled{opacity:.45; cursor:not-allowed}
+  .pull-btn small{display:block; font:700 12px/1 var(--mono); color:#c9a6ff; margin-top:5px}
+  .coll{display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-top:4px}
+  .coll .slot{aspect-ratio:1; border-radius:10px; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:3px; background:var(--panel2); border:1px solid var(--edge); font-size:11px; color:var(--dim)}
+  .coll .slot .rc{font:800 15px/1 var(--mono)}
+  .rarity-C{color:var(--dim)} .rarity-R{color:var(--cyan)} .rarity-E{color:var(--purple)} .rarity-L{color:var(--gold)}
+
+  /* 가챠 뽑기 결과 오버레이 */
+  .reveal{position:fixed; inset:0; background:rgba(6,9,15,.82); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center; z-index:20; opacity:0; pointer-events:none;
+    transition:opacity .2s}
+  .reveal.on{opacity:1; pointer-events:auto}
+  .reveal .card{width:220px; padding:26px 18px; border-radius:20px; text-align:center;
+    background:linear-gradient(180deg,var(--panel2),#0b1017); border:2px solid var(--edge);
+    transform:scale(.6) rotateY(90deg); transition:transform .45s cubic-bezier(.2,1.2,.3,1)}
+  .reveal.on .card{transform:scale(1) rotateY(0)}
+  .reveal .card .em{font-size:56px}
+  .reveal .card .rr{font:800 22px/1 var(--sans); margin:10px 0 4px}
+  .reveal .card .nm{font:700 13px/1.3 var(--sans); color:var(--dim)}
+  .reveal .card .mx{font:800 20px/1 var(--mono); margin-top:12px}
+  .reveal .card.rarity-L{border-color:var(--gold); box-shadow:0 0 60px rgba(255,203,69,.5)}
+  .reveal .card.rarity-E{border-color:var(--purple); box-shadow:0 0 44px rgba(185,139,255,.4)}
+  .reveal .card.rarity-R{border-color:var(--cyan); box-shadow:0 0 30px rgba(79,214,224,.3)}
+  .reveal .tap{position:absolute; bottom:16%; font:600 12px/1 var(--sans); color:var(--faint)}
+
+  /* 프레스티지 */
+  .presti-btn{font:800 15px/1 var(--sans); padding:14px; border-radius:13px; cursor:pointer; width:100%;
+    background:linear-gradient(180deg,#2a1a3f,#1a0f2a); border:1px solid var(--purple); color:#e9d6ff}
+  .presti-btn:disabled{opacity:.4; cursor:not-allowed; background:var(--panel2); border-color:var(--edge); color:var(--faint)}
+  .presti-btn small{display:block; font:600 11px/1.4 var(--sans); margin-top:5px; opacity:.85}
+
+  .save-dot{text-align:center; font:600 10px/1 var(--sans); color:var(--faint); letter-spacing:.5px}
+
+  /* 오프라인 수익 모달 */
+  .modal{position:fixed; inset:0; background:rgba(6,9,15,.9); backdrop-filter:blur(3px);
+    display:flex; align-items:center; justify-content:center; z-index:30; padding:24px}
+  .modal[hidden]{display:none}
+  .modal .box{color:var(--ink); background:linear-gradient(180deg,var(--panel2),#0b1017); border:1px solid var(--gold);
+    border-radius:20px; padding:26px 22px; text-align:center; max-width:320px; box-shadow:0 0 50px rgba(255,203,69,.25)}
+  .modal .box h2{font:800 18px/1.2 var(--sans)}
+  .modal .box .amt{font:800 30px/1 var(--mono); color:var(--gold); margin:14px 0; text-shadow:0 0 20px rgba(255,203,69,.3)}
+  .modal .box p{font:600 12px/1.5 var(--sans); color:var(--dim)}
+  .modal .box button{margin-top:16px; font:800 15px/1 var(--sans); padding:14px 30px; border-radius:12px;
+    cursor:pointer; background:linear-gradient(180deg,#2a2410,#1c1a0c); border:1px solid var(--gold); color:#ffe6a3}
+  .modal .box.end{border-color:var(--purple); box-shadow:0 0 60px rgba(185,139,255,.4)}
+  .modal .box.end .end-em{font-size:60px; margin-bottom:4px}
+  .modal .box.end h2{color:var(--purple); font-size:22px}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  .hidden{display:none!important}
+</style>
+
+<div class="app">
+  <div class="hud">
+    <div class="presti" id="presti">명성 ×1.00</div>
+    <div class="cap">총자산</div>
+    <div class="money" id="money">0원</div>
+    <div class="rate">초당 <b id="rate">0</b>원</div>
+    <button class="tap-earn" id="tapBtn">💰 직접 트레이딩 <small id="tapAmt"></small></button>
+  </div>
+
+  <div class="goal-strip" id="goalStrip"></div>
+
+  <div class="boosts">
+    <button class="boost-btn" id="boostBtn">🎬 광고 보고 2배 부스트 (4시간)</button>
+    <button class="boost-btn alt" id="freeGachaBtn">🎬 광고 보고 무료 뽑기</button>
+  </div>
+
+  <button class="daily-btn hidden" id="dailyBtn">🎁 오늘의 출석보상 받기</button>
+
+  <div class="tabs">
+    <button class="tab on" id="tabBots" data-t="bots">🤖 봇 <b id="botCount"></b></button>
+    <button class="tab" id="tabGacha" data-t="gacha">🎰 뽑기</button>
+  </div>
+
+  <div class="syn" id="synStrip"></div>
+  <div class="buyamt" id="buyAmtBar">
+    <span class="lbl">한 번에</span>
+    <button id="amt1" class="on">×1</button>
+    <button id="amt10">×10</button>
+    <button id="amt100">×100</button>
+    <button id="amtMAX">최대</button>
+  </div>
+  <div class="panel" id="viewBots"></div>
+
+  <div class="panel hidden" id="viewGacha">
+    <div class="gacha-hero">
+      <div class="cap">가챠 배수 (영구)</div>
+      <div class="mult" id="gachaMult">×1.00</div>
+    </div>
+    <button class="pull-btn" id="pullBtn">봇 뽑기 🎰 <small id="pullCost">500원</small></button>
+    <div class="coll" id="coll"></div>
+    <button class="presti-btn" id="prestiBtn" disabled>제국 매각 (환생)
+      <small id="prestiSub">자산 1억 이상이면 영구 배수를 받고 새로 시작</small></button>
+  </div>
+
+  <div class="save-dot" id="saveDot">자동 저장됨</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="adModal" hidden><div class="box">
+  <h2>📺 광고 시청 중…</h2>
+  <div class="adbar"><i id="adFill"></i></div>
+  <p style="color:var(--faint)">실제 배포 시 리워드 광고가 나오는 자리입니다.<br>(프로토타입은 2초 스킵)</p>
+  <button id="adClaim" disabled>보상 받기</button>
+</div></div>
+
+<div class="reveal" id="reveal"><div class="card" id="revealCard">
+  <div class="em" id="rvEm">🎰</div><div class="rr" id="rvRr"></div>
+  <div class="nm" id="rvNm"></div><div class="mx" id="rvMx"></div>
+</div><div class="tap">아무 곳이나 탭</div></div>
+
+<div class="modal" id="offline" hidden><div class="box">
+  <h2>🌙 자리를 비운 사이</h2>
+  <div class="amt" id="offAmt">+0원</div>
+  <p id="offP">봇들이 알아서 벌어놨습니다.</p>
+  <button id="offBtn">받기</button>
+</div></div>
+
+<div class="modal" id="dailyModal" hidden><div class="box">
+  <h2>🎁 출석보상</h2>
+  <div class="amt" id="dailyAmt">+0원</div>
+  <p id="dailyP">출석 1일차</p>
+  <button id="dailyClose">받기</button>
+</div></div>
+
+<div class="modal" id="endModal" hidden><div class="box end">
+  <div class="end-em" id="endEm">🏆</div>
+  <h2 id="endTitle">명예의 전당 입성</h2>
+  <p id="endSub">당신은 시장을 정복했습니다.</p>
+  <div class="stat" id="endStat"></div>
+  <button id="endClose">계속 플레이 ▸</button>
+</div></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const now = () => Date.now();
+
+  // ── 봇 정의 (트레이딩 제국) ────────────────────────────────────
+  const BOTS = [
+    {id:0, ic:"🪙", n:"스캘핑 봇",   base:10,        rate:0.5},
+    {id:1, ic:"🧊", n:"그리드 봇",   base:90,        rate:4},
+    {id:2, ic:"♻️", n:"차익거래 봇", base:1100,      rate:24},
+    {id:3, ic:"🤝", n:"마켓메이커 봇", base:14000,    rate:47},
+    {id:4, ic:"🌊", n:"김프 봇",     base:170000,    rate:260},
+    {id:5, ic:"🧠", n:"AI 퀀트 봇",  base:2000000,   rate:1400},
+    {id:6, ic:"🐋", n:"고래 추적 봇", base:25000000,  rate:7800},
+    {id:7, ic:"⚛️", n:"차익 클러스터", base:3.3e8,    rate:44000},
+  ];
+  const RARITY = [
+    {k:"C", w:.60, mult:1.03, em:"🟦", nm:"커먼",   col:"C"},
+    {k:"R", w:.27, mult:1.08, em:"🟩", nm:"레어",   col:"R"},
+    {k:"E", w:.10, mult:1.20, em:"🟪", nm:"에픽",   col:"E"},
+    {k:"L", w:.03, mult:1.60, em:"🟨", nm:"레전드", col:"L"},
+  ];
+
+  // ── 상태 ───────────────────────────────────────────────────────
+  let S;
+  const fresh = () => ({
+    money:40, owned:BOTS.map(()=>0), gachaMult:1, pulls:0,
+    coll:{C:0,R:0,E:0,L:0}, fame:0, lastTs:now(), daily:{last:"",streak:0},
+    boostUntil:0, freeGachaAt:0, ach:{}, endings:{}
+  });
+  const KEY = "trading-empire-v1";
+  function load(){
+    try{ const raw=localStorage.getItem(KEY); if(raw){ S=JSON.parse(raw);
+      // 방어: 필드 보정 + 숫자 강제화(변조 저장의 문자열이 innerHTML/toFixed에 닿지 못하게)
+      const num=(v)=>{ const n=+v; return Number.isFinite(n)? n : 0; };
+      S.owned = BOTS.map((_,i)=> num(S.owned && S.owned[i]));
+      const c0={C:0,R:0,E:0,L:0}; S.coll = S.coll||{};
+      S.coll = {C:num(S.coll.C), R:num(S.coll.R), E:num(S.coll.E), L:num(S.coll.L)};
+      S.money=num(S.money); S.gachaMult=num(S.gachaMult)||1; S.fame=num(S.fame); S.pulls=num(S.pulls);
+      S.boostUntil=num(S.boostUntil); S.freeGachaAt=num(S.freeGachaAt);
+      S.daily = Object.assign({last:"",streak:0}, S.daily||{}); S.daily.streak=num(S.daily.streak);
+      S.ach = (S.ach&&typeof S.ach==="object")? S.ach : {};
+      S.endings = (S.endings&&typeof S.endings==="object")? S.endings : {};
+      return true; } }catch(e){}
+    S = fresh(); return false;
+  }
+  function save(){ try{ S.lastTs=now(); localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+  // ── 시너지 (봇 조합 보너스) ────────────────────────────────────
+  const distinct = () => BOTS.reduce((n,b)=> n + (S.owned[b.id]>0?1:0), 0);
+  const SYNERGIES = [
+    {name:"라인업",     desc:"보유한 봇 종류마다 +8%",
+      on:()=>distinct()>0, mult:()=>1+distinct()*0.08, val:()=>`×${(1+distinct()*0.08).toFixed(2)}`},
+    {name:"고빈도 라인", desc:"스캘핑·그리드 각 10대↑ → ×1.4",
+      on:()=>S.owned[0]>=10&&S.owned[1]>=10, mult:()=>1.4, val:()=>"×1.4"},
+    {name:"차익 군단",   desc:"차익거래·김프·고래 모두 보유 → ×1.6",
+      on:()=>S.owned[2]>0&&S.owned[4]>0&&S.owned[6]>0, mult:()=>1.6, val:()=>"×1.6"},
+    {name:"AI 지배",     desc:"AI 퀀트·차익 클러스터 모두 보유 → ×2",
+      on:()=>S.owned[5]>0&&S.owned[7]>0, mult:()=>2, val:()=>"×2"},
+  ];
+  const synergyMult = () => SYNERGIES.reduce((m,s)=> s.on()? m*s.mult() : m, 1);
+
+  // ── 업적 (항상 다음 목표 = 중독 레버) ─────────────────────────
+  const totalBots = () => BOTS.reduce((s,_,i)=>s+S.owned[i],0);
+  const ACH = [
+    {id:"b10",  name:"첫 함대",   need:()=>totalBots(), goal:10,  desc:"봇 10대",   give:()=>S.money+=200,  rt:"+200원"},
+    {id:"b50",  name:"소규모 펀드", need:()=>totalBots(), goal:50,  desc:"봇 50대",   give:()=>S.money+=perSec()*300+2000, rt:"현금 보너스"},
+    {id:"b200", name:"헤지펀드",   need:()=>totalBots(), goal:200, desc:"봇 200대",  give:()=>S.gachaMult=+(S.gachaMult*1.1).toFixed(4), rt:"가챠 배수 ×1.1"},
+    {id:"g1",   name:"첫 뽑기",    need:()=>S.pulls,     goal:1,   desc:"가챠 1회",  give:()=>S.money+=500,  rt:"+500원"},
+    {id:"L1",   name:"전설 획득",  need:()=>S.coll.L||0, goal:1,   desc:"레전드 봇 1개", give:()=>S.boostUntil=Math.max(S.boostUntil,now())+2*3600*1000, rt:"2배 부스트 2시간"},
+    {id:"f1",   name:"첫 환생",    need:()=>S.fame,      goal:1,   desc:"프레스티지 1회", give:()=>S.gachaMult=+(S.gachaMult*1.2).toFixed(4), rt:"가챠 배수 ×1.2"},
+    {id:"f5",   name:"제국의 지배자", need:()=>S.fame,   goal:5,   desc:"명성 5",    give:()=>S.boostUntil=Math.max(S.boostUntil,now())+8*3600*1000, rt:"2배 부스트 8시간"},
+  ];
+  function checkAch(){
+    let popped=null;
+    for(const a of ACH){ if(!S.ach[a.id] && a.need()>=a.goal){ S.ach[a.id]=1; a.give(); popped=a; } }
+    if(popped) achToast(popped);
+  }
+  function nextAch(){ return ACH.find(a=>!S.ach[a.id]); }
+
+  // ── 엔딩(도착지) — 게임에 "끝"을 준다. 명예의 전당 이후에도 계속 플레이 가능(무한).
+  const ENDINGS = [
+    {id:"e1", fame:10, em:"🏆", title:"명예의 전당 입성", sub:"당신은 시장을 정복했습니다."},
+    {id:"e2", fame:25, em:"👑", title:"월가의 전설",     sub:"이제 시장이 당신을 따라옵니다."},
+    {id:"e3", fame:60, em:"🌌", title:"시장의 신",       sub:"숫자가 우주가 되었습니다. 진짜 끝은 없습니다 — 계속."},
+  ];
+  function checkEnding(){
+    for(const e of ENDINGS){
+      if(!S.endings[e.id] && S.fame>=e.fame){
+        S.endings[e.id]=1;
+        $("endEm").textContent=e.em; $("endTitle").textContent=e.title; $("endSub").textContent=e.sub;
+        $("endStat").innerHTML = `명성 <b>×${fameMult().toFixed(2)}</b> · 봇 <b>${fmt(totalBots())}</b> · 가챠 <b>×${S.gachaMult.toFixed(1)}</b>`;
+        $("endModal").hidden=false; sfx("legend"); save();
+        return;
+      }
+    }
+  }
+
+  // ── 계산 ───────────────────────────────────────────────────────
+  const fameMult = () => 1 + S.fame*0.15;
+  const boostOn = () => now() < S.boostUntil;
+  const boostMult = () => boostOn() ? 2 : 1;
+  // 봇별 무한 마일스톤: 25대마다 그 봇 수입 ×2 (상한 없음) — "천장 없는" 장기 목표 사다리
+  const milestone = id => Math.pow(2, Math.floor(S.owned[id]/25));
+  const perSec = () => BOTS.reduce((s,b)=> s + S.owned[b.id]*b.rate*milestone(b.id), 0) * S.gachaMult * fameMult() * synergyMult() * boostMult();
+  const cost = b => Math.ceil(b.base * Math.pow(1.15, S.owned[b.id]));
+  // 대량구매: 다음 n대를 살 때 총비용(등비합) / 지금 자산으로 살 수 있는 최대 대수
+  function bulkCost(b, n){ const r=1.15, base=b.base*Math.pow(r,S.owned[b.id]);
+    return Math.ceil(base*(Math.pow(r,n)-1)/(r-1)); }
+  function maxBuy(b){ const r=1.15, base=b.base*Math.pow(r,S.owned[b.id]);
+    if(S.money<base) return 0;
+    return Math.floor(Math.log(S.money*(r-1)/base + 1)/Math.log(r)); }
+  let buyAmt = 1; // 1 | 10 | 100 | "MAX"
+  function wantN(b){ return buyAmt==="MAX" ? Math.max(1,maxBuy(b)) : buyAmt; }
+  const pullCost = () => Math.ceil(500 * Math.pow(1.35, S.pulls));
+  const prestiReq = 1e8;
+  const fameGain = () => Math.floor(Math.pow(totalWorth()/prestiReq, 0.5));
+  function totalWorth(){ // 대략적 부의 척도 = 현재 자산 + 보유 봇 환산
+    return S.money + BOTS.reduce((s,b)=> s + S.owned[b.id]*b.base*3, 0);
+  }
+
+  // ── 숫자 포맷 (만·억·조…) ──────────────────────────────────────
+  const U=["","만","억","조","경","해"];
+  function fmt(n){
+    if(n<0) return "0"; if(n<1) return n.toFixed(2).replace(/0+$/,"").replace(/\.$/,"")||"0";
+    if(n<10000) return (n<100? Math.round(n*10)/10 : Math.round(n)).toLocaleString("ko-KR");
+    let t=0,x=n; while(x>=10000 && t<U.length-1){x/=10000;t++;}
+    return (x>=100? Math.round(x): Math.round(x*10)/10) + U[t];
+  }
+
+  // ── 렌더 ───────────────────────────────────────────────────────
+  const botRows=[];
+  function buildBots(){
+    const v=$("viewBots"); v.innerHTML="";
+    BOTS.forEach(b=>{
+      const el=document.createElement("button"); el.className="bot";
+      el.innerHTML=`<div class="ic">${b.ic}</div>
+        <div class="mid"><div class="n">${b.n}<em class="lv"></em><span class="ms"></span></div>
+        <div class="sub">개당 초당 <b>${fmt(b.rate)}</b>원 · 합 <b class="tot"></b></div></div>
+        <div class="buy"><div class="cost"></div><div class="cnt"></div></div>`;
+      el.onclick=()=>buy(b);
+      v.appendChild(el); botRows[b.id]=el;
+    });
+  }
+  function renderBots(){
+    ["1","10","100","MAX"].forEach(a=>{
+      const el=$("amt"+a); if(el) el.classList.toggle("on", String(buyAmt)===a);
+    });
+    let unlocked=0;
+    BOTS.forEach(b=>{
+      const el=botRows[b.id], own=S.owned[b.id];
+      const n = wantN(b), c = bulkCost(b, n), can = (buyAmt==="MAX"? maxBuy(b)>0 : S.money>=c);
+      const visible = own>0 || S.money>=b.base*0.3 || (b.id>0 && S.owned[b.id-1]>0);
+      el.classList.toggle("hidden", !visible && own===0 && b.id>0 && S.owned[b.id-1]===0);
+      if(!el.classList.contains("hidden")) unlocked++;
+      el.classList.toggle("afford", can);
+      el.disabled = !can;
+      el.querySelector(".lv").textContent = own>0? `Lv.${own}`:"";
+      const ms=milestone(b.id), toNext=25-(own%25);
+      el.querySelector(".ms").textContent = own>0
+        ? (ms>1? `⚡×${ms} · 다음 ${toNext}대` : `${own}/25 → ×2`) : "";
+      el.querySelector(".tot").textContent = fmt(own*b.rate*ms*S.gachaMult*fameMult()*synergyMult())+"원/s";
+      el.querySelector(".cost").textContent = fmt(c)+"원";
+      el.querySelector(".cnt").textContent = `${own>0?`보유 ${own} · `:""}+${n}`;
+    });
+    $("botCount").textContent = BOTS.reduce((s,_,i)=>s+S.owned[i],0) || "";
+    renderSyn();
+  }
+  function renderSyn(){
+    $("synStrip").innerHTML = SYNERGIES.map(s=>{
+      const on=s.on();
+      return `<div class="syn-chip ${on?'on':''}" title="${s.desc}">
+        <span class="sn">${s.name}</span><span class="sv">${on?s.val():"잠김"}</span>
+        <span class="sd">${s.desc}</span></div>`;
+    }).join("");
+  }
+  // 초반 온램프. 수입의 일부만 반영 → 후반엔 상대적으로 미미해져 자연 소멸(과속 방지).
+  const tapGain = () => Math.max(1, perSec()*0.3 + 1);
+  function renderHud(){
+    $("money").textContent = fmt(S.money)+"원";
+    $("rate").textContent = fmt(perSec()) + (boostOn()?" ⚡2배":"");
+    $("rate").classList.toggle("boosted", boostOn());
+    $("presti").textContent = "명성 ×"+fameMult().toFixed(2);
+    $("tapAmt").textContent = "+"+fmt(tapGain())+"원";
+    // 다음 목표 (항상 하나 노출 = 중독 레버)
+    const a=nextAch();
+    $("goalStrip").innerHTML = a
+      ? `🎯 다음 목표 · <b>${a.name}</b> (${a.desc}) <span class="pg">${fmt(Math.min(a.need(),a.goal))}/${fmt(a.goal)}</span> <span class="rw">보상 ${a.rt}</span>`
+      : `🏆 모든 업적 달성!`;
+  }
+  function renderGacha(){
+    $("gachaMult").textContent = "×"+S.gachaMult.toFixed(2);
+    $("pullCost").textContent = fmt(pullCost())+"원";
+    $("pullBtn").disabled = S.money < pullCost();
+    const c=$("coll");
+    c.innerHTML = RARITY.map(r=>`<div class="slot"><div class="rc rarity-${r.col}">${r.em}</div>
+      <div>${r.nm}</div><div class="rarity-${r.col}" style="font-weight:800">${S.coll[r.k]||0}</div></div>`).join("");
+    const fg=fameGain();
+    $("prestiBtn").disabled = fg<1;
+    $("prestiSub").textContent = fg>=1
+      ? `지금 환생하면 명성 +${fg} (초당수입 영구 +${(fg*15)}%). 봇·자산 초기화.`
+      : `자산 ${fmt(prestiReq)}원 이상이면 환생 가능 (지금 ${fmt(totalWorth())})`;
+  }
+  function renderAll(){ renderHud(); renderBots(); renderGacha(); renderDaily(); renderBoost(); }
+
+  // ── 액션 ───────────────────────────────────────────────────────
+  function buy(b){
+    const n = wantN(b); if(n<1) return;
+    const c = bulkCost(b, n);
+    if(buyAmt!=="MAX" && S.money<c) return;   // 정확수량은 전부 살 수 있을 때만
+    S.money-=c; S.owned[b.id]+=n; sfx("buy"); renderAll();
+  }
+
+  // 직접 트레이딩(탭) — 초반 온램프. 수입이 없을 때도 손으로 밀어 시작.
+  function tapEarn(){
+    const g = tapGain();
+    S.money += g; sfx("buy"); floatUp("+"+fmt(g)); renderHud(); renderBots();
+  }
+  function floatUp(txt){
+    const el=document.createElement("div"); el.className="float"; el.textContent=txt;
+    $("tapBtn").appendChild(el); setTimeout(()=>el.remove(), 750);
+  }
+
+  // ── 일일보상 (출석) ────────────────────────────────────────────
+  function dayStr(ts){ const d=new Date(ts); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
+  const dailyReady = () => S.daily.last !== dayStr(now());
+  function claimDaily(){
+    if(!dailyReady()) return;
+    const streak = (S.daily.last===dayStr(now()-86400000)) ? S.daily.streak+1 : 1;
+    S.daily = {last:dayStr(now()), streak};
+    const base = Math.max(300, perSec()*600);           // 10분치 or 바닥 300
+    let reward = base * (1 + (streak-1)*0.25);           // 연속일마다 +25%
+    let extra = "";
+    if(streak%7===0){ reward *= 3; extra = " · 🎉 7일 연속 보너스 ×3!"; }
+    S.money += reward;
+    $("dailyAmt").textContent = "+"+fmt(reward)+"원";
+    $("dailyP").textContent = `출석 ${streak}일차${extra}`;
+    $("dailyModal").hidden=false;
+    sfx(streak%7===0?"legend":"epic"); renderAll();
+  }
+  function renderDaily(){
+    const ready=dailyReady();
+    $("dailyBtn").classList.toggle("hidden", !ready);
+    $("dailyBtn").textContent = `🎁 오늘의 출석보상 받기${S.daily.streak>0?` (연속 ${S.daily.streak}일)`:""}`;
+  }
+
+  function weightedRarity(){ let r=Math.random(), a=0; for(const R of RARITY){ a+=R.w; if(r<a) return R; } return RARITY[0]; }
+  let revealing=false;
+  function pull(free){
+    const c=pullCost(); if(revealing) return;
+    if(!free){ if(S.money<c) return; S.money-=c; }
+    S.pulls++; const R=weightedRarity();
+    S.gachaMult=+(S.gachaMult*R.mult).toFixed(4); S.coll[R.k]=(S.coll[R.k]||0)+1;
+    sfx(R.k==="L"?"legend":R.k==="E"?"epic":"pull");
+    // 연출
+    revealing=true;
+    const card=$("revealCard"); card.className="card rarity-"+R.col;
+    $("rvEm").textContent=R.em; $("rvRr").textContent=R.nm; $("rvRr").className="rr rarity-"+R.col;
+    $("rvNm").textContent="가챠 배수 강화";
+    $("rvMx").textContent="×"+R.mult.toFixed(2); $("rvMx").className="mx rarity-"+R.col;
+    $("reveal").classList.add("on");
+    renderAll();
+  }
+  function closeReveal(){ $("reveal").classList.remove("on"); revealing=false; }
+
+  function prestige(){
+    const fg=fameGain(); if(fg<1) return;
+    if(!confirm(`제국을 매각하고 환생합니다.\n명성 +${fg} (초당수입 영구 +${fg*15}%)\n봇과 자산은 초기화됩니다. 진행할까요?`)) return;
+    S.fame+=fg; S.money=20; S.owned=BOTS.map(()=>0);
+    // 가챠 배수·수집은 유지(환생 보너스). 뽑기 카운트만 리셋해 초반 부담↓
+    S.pulls=Math.max(0,S.pulls-3);
+    sfx("legend"); save(); renderAll();
+  }
+
+  // ── 리워드 광고 = 운영 수익 훅 (플레이어에겐 파워업) ──────────
+  //    실제 배포 시 리워드 광고 SDK 연동. 프로토는 "광고 자리" 스텁 2초.
+  let adReward = null;
+  function watchAd(kind){
+    if(kind==="freeGacha" && now()<S.freeGachaAt) return;  // 쿨다운
+    adReward = kind;
+    $("adFill").style.animation="none"; void $("adFill").offsetWidth;
+    $("adFill").style.animation="adbar 2s linear forwards";
+    $("adClaim").disabled=true;
+    $("adModal").hidden=false;
+    setTimeout(()=>{ $("adClaim").disabled=false; }, 2000);
+  }
+  function claimAd(){
+    if($("adClaim").disabled) return;
+    $("adModal").hidden=true;
+    if(adReward==="boost"){
+      S.boostUntil = Math.max(S.boostUntil, now()) + 4*3600*1000;  // 2배 4시간(누적 연장)
+      sfx("epic"); toast("⚡ 2배 부스트 4시간 발동!");
+    } else if(adReward==="freeGacha"){
+      S.freeGachaAt = now() + 20*60*1000;  // 20분 쿨다운
+      pull(true);  // 무료 뽑기
+    }
+    adReward=null; renderAll();
+  }
+  function hhmmss(ms){ const s=Math.max(0,Math.floor(ms/1000));
+    const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}`; }
+  function renderBoost(){
+    const on=boostOn();
+    $("boostBtn").textContent = on ? `⚡ 2배 부스트 ${hhmmss(S.boostUntil-now())}` : "🎬 광고 보고 2배 부스트 (4시간)";
+    $("boostBtn").classList.toggle("active", on);
+    const cd = S.freeGachaAt-now();
+    const fg=$("freeGachaBtn");
+    if(cd>0){ fg.disabled=true; fg.textContent=`🎬 무료 뽑기 (${hhmmss(cd)})`; }
+    else { fg.disabled=false; fg.textContent="🎬 광고 보고 무료 뽑기"; }
+  }
+
+  // ── 토스트 ─────────────────────────────────────────────────────
+  function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2200); }
+  function achToast(a){ toast(`🏆 업적 «${a.name}» 달성! ${a.rt}`); sfx("epic"); }
+
+  // ── 오프라인 수익 ──────────────────────────────────────────────
+  function grantOffline(){
+    const dt = Math.min((now()-S.lastTs)/1000, 8*3600); // 최대 8시간
+    if(dt<60) return; // 1분 미만은 스킵
+    const earned = perSec()*dt;
+    if(earned<1) return;
+    S.money+=earned;
+    $("offAmt").textContent="+"+fmt(earned)+"원";
+    const h=Math.floor(dt/3600), m=Math.floor((dt%3600)/60);
+    $("offP").textContent=`약 ${h>0?h+"시간 ":""}${m}분 동안 봇들이 벌어놨습니다.`;
+    $("offline").hidden=false;
+  }
+
+  // ── 사운드 ─────────────────────────────────────────────────────
+  let AC;
+  function sfx(t){
+    try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); }catch(e){return;}
+    const ct=AC.currentTime, tone=(f,v,d,w)=>{ const o=AC.createOscillator(),g=AC.createGain();
+      o.connect(g);g.connect(AC.destination);o.type=w||"triangle";o.frequency.setValueAtTime(f,ct);
+      g.gain.setValueAtTime(v,ct);g.gain.exponentialRampToValueAtTime(.0001,ct+d);o.start(ct);o.stop(ct+d); };
+    if(t==="buy") tone(560,.06,.07,"square");
+    else if(t==="pull") tone(330,.1,.18);
+    else if(t==="epic"){ [440,660].forEach((f,i)=>setTimeout(()=>tone(f,.12,.25),i*90)); }
+    else if(t==="legend"){ [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.16,.4),i*90)); }
+  }
+
+  // ── 루프 ───────────────────────────────────────────────────────
+  let last=now();
+  let boostWas=false;
+  function tick(){
+    const t=now(), dt=(t-last)/1000; last=t;
+    S.money += perSec()*dt;
+    checkAch(); checkEnding();
+    renderHud(); renderBots(); renderBoost();
+    if(!$("viewGacha").classList.contains("hidden")) renderGacha();
+    if(boostWas && !boostOn()){ toast("부스트 종료 — 다시 광고로 연장 가능"); } // 만료 알림
+    boostWas = boostOn();
+    requestAnimationFrame(tick);
+  }
+
+  // ── 탭 ─────────────────────────────────────────────────────────
+  function tab(which){
+    $("tabBots").classList.toggle("on", which==="bots");
+    $("tabGacha").classList.toggle("on", which==="gacha");
+    $("viewBots").classList.toggle("hidden", which!=="bots");
+    $("synStrip").classList.toggle("hidden", which!=="bots");
+    $("buyAmtBar").classList.toggle("hidden", which!=="bots");
+    $("viewGacha").classList.toggle("hidden", which!=="gacha");
+    renderAll();
+  }
+
+  // ── 배선 ───────────────────────────────────────────────────────
+  const had = load();
+  buildBots(); renderAll();
+  if(had) grantOffline();
+  $("tabBots").onclick=()=>tab("bots"); $("tabGacha").onclick=()=>tab("gacha");
+  $("pullBtn").onclick=()=>pull(false); $("reveal").onclick=closeReveal;
+  $("prestiBtn").onclick=prestige;
+  $("tapBtn").onclick=tapEarn;
+  [["amt1",1],["amt10",10],["amt100",100],["amtMAX","MAX"]].forEach(([id,v])=>{
+    $(id).onclick=()=>{ buyAmt=v; renderBots(); };
+  });
+  $("boostBtn").onclick=()=>{ if(!boostOn()) watchAd("boost"); };
+  $("freeGachaBtn").onclick=()=>watchAd("freeGacha");
+  $("adClaim").onclick=claimAd;
+  $("dailyBtn").onclick=claimDaily;
+  $("offBtn").onclick=()=>$("offline").hidden=true;
+  $("dailyClose").onclick=()=>$("dailyModal").hidden=true;
+  $("endClose").onclick=()=>$("endModal").hidden=true;
+  setInterval(()=>{ save(); const d=$("saveDot"); d.textContent="✓ 저장됨"; setTimeout(()=>d.textContent="자동 저장됨",800); }, 5000);
+  addEventListener("visibilitychange",()=>{ if(document.hidden) save(); });
+  addEventListener("beforeunload", save);
+  // PWA: 오프라인·홈화면 설치. 정적 호스트(GitHub Pages 등)에서 동작. 아티팩트 단일파일에선 sw 404 → 조용히 무시.
+  if("serviceWorker" in navigator){ addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+  requestAnimationFrame(tick);
+})();
+</script>
