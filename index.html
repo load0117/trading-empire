@@ -262,6 +262,17 @@
   .vip small{font:600 10px/1.3 var(--sans); color:var(--faint)}
   .vip.on{border-color:var(--gold); background:linear-gradient(180deg,#2a2410,#1a1608); color:var(--gold); font:800 14px/1.4 var(--sans); padding:14px}
 
+  /* 라운드 바 (60초 턴제 리듬) */
+  .roundbar{position:relative; display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:8px 12px; border-radius:11px; background:linear-gradient(180deg,#0f1b2a,#0a1420);
+    border:1px solid #2a5a6b; font:800 11.5px/1 var(--sans); color:var(--cyan); overflow:hidden}
+  .roundbar #roundClock{font-family:var(--mono); color:var(--ink)}
+  .roundbar #roundPnl{font-family:var(--mono)}
+  .roundbar #roundPnl.up{color:var(--green)} .roundbar #roundPnl.dn{color:var(--red)}
+  .roundbar > i{position:absolute; left:0; bottom:0; height:2px; background:var(--cyan); transition:width .2s linear}
+  .roundbar.ending{animation:rndflash .6s ease-out}
+  @keyframes rndflash{0%{background:rgba(79,214,224,.4)}100%{background:linear-gradient(180deg,#0f1b2a,#0a1420)}}
+
   /* 코치 (지금 뭘 해야 하나) */
   .coach{display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px;
     background:linear-gradient(180deg,#13251f,#0d1a15); border:1px solid #2f7d57;
@@ -294,6 +305,13 @@
       <div class="mkt-price"><div class="p" id="mktPrice">100.0</div><div class="c up" id="mktChg">+0.0%</div></div>
     </div>
     <div class="event-banner" id="eventBanner"></div>
+  </div>
+
+  <div class="roundbar" id="roundbar">
+    <span id="roundNo">🔄 라운드 #1</span>
+    <span id="roundClock">⏱ 60초</span>
+    <span id="roundPnl">이번 라운드 +0원</span>
+    <i id="roundFill"></i>
   </div>
 
   <div class="coach" id="coach"><span class="ico">👉</span><span id="coachText">차트 방향을 예측해 매매하세요</span></div>
@@ -477,7 +495,7 @@
     money:2000, owned:BOTS.map((_,i)=> i===0?3:0), gachaMult:1, pulls:0,
     coll:{C:0,R:0,E:0,L:0}, fame:0, lastTs:now(), daily:{last:"",streak:0},
     boostUntil:0, freeGachaAt:0, ach:{}, endings:{}, trades:0, bestStreak:0, bestTrade:0, seenTut:0,
-    items:{}, vip:0
+    items:{}, vip:0, bestRound:0
   });
   const KEY = "trading-empire-v1";
   function load(){
@@ -492,7 +510,7 @@
       S.daily = Object.assign({last:"",streak:0}, S.daily||{}); S.daily.streak=num(S.daily.streak);
       S.ach = (S.ach&&typeof S.ach==="object")? S.ach : {};
       S.endings = (S.endings&&typeof S.endings==="object")? S.endings : {};
-      S.items = (S.items&&typeof S.items==="object")? S.items : {}; S.vip=num(S.vip);
+      S.items = (S.items&&typeof S.items==="object")? S.items : {}; S.vip=num(S.vip); S.bestRound=num(S.bestRound);
       return true; } }catch(e){}
     S = fresh(); return false;
   }
@@ -580,7 +598,26 @@
   }
 
   // ── 살아있는 시장 ──────────────────────────────────────────────
-  const MKT = { price:100, candles:[], cur:null, tC:0, event:null, evUntil:0, nextEv:0, whaleUntil:0, whaleShown:false };
+  const MKT = { price:100, candles:[], cur:null, tC:0, event:null, evUntil:0, nextEv:0, whaleUntil:0, whaleShown:false,
+    round:0, round0:0, roundOpen:100, roundPnl:0 };
+  const ROUND_MS = 60000;   // 60초 턴제 라운드(시간 기준 = 서버 없이 모든 기기 동일 라운드 번호)
+  function endRound(){
+    const chg = (MKT.price - MKT.roundOpen)/MKT.roundOpen*100;
+    if(MKT.roundPnl > S.bestRound) S.bestRound = MKT.roundPnl;
+    const rb=$("roundbar"); rb.classList.remove("ending"); void rb.offsetWidth; rb.classList.add("ending");
+    const dir = chg>=0 ? "🔺 롱 승" : "🔻 숏 승";
+    toast(`🏁 라운드 종료! 지수 ${chg>=0?"+":""}${chg.toFixed(1)}% (${dir}) · 내 수익 ${MKT.roundPnl>=0?"+":""}${fmt(MKT.roundPnl)}원`);
+    sfx(MKT.roundPnl>0?"epic":"pull");
+    MKT.roundPnl=0; MKT.roundOpen=MKT.price;
+  }
+  function renderRound(t){
+    const within=(t%ROUND_MS)/ROUND_MS, left=Math.ceil((1-within)*ROUND_MS/1000);
+    $("roundNo").textContent = `🔄 라운드 #${MKT.round - MKT.round0 + 1}`;
+    $("roundClock").textContent = `⏱ ${left}초`;
+    const pn=$("roundPnl"); pn.textContent=`이번 라운드 ${MKT.roundPnl>=0?"+":""}${fmt(MKT.roundPnl)}원`;
+    pn.className = MKT.roundPnl>=0?"up":"dn";
+    $("roundFill").style.width = (within*100).toFixed(1)+"%";
+  }
   (function seed(){ let p=100; for(let i=0;i<44;i++){ const o=p; p+=rnd(-3,3); p=Math.max(60,Math.min(150,p));
     MKT.candles.push({o, h:Math.max(o,p)+rnd(0,2), l:Math.min(o,p)-rnd(0,2), c:p}); } MKT.price=p; })();
 
@@ -702,12 +739,14 @@
     const net = profit - fee;                // 수수료 반영 순손익
     if(net>0){
       streak++; if(streak>1) bonus=net*Math.min(streak-1,10)*0.1; S.money+=TR.stake+net+bonus;
+      MKT.roundPnl += net+bonus;   // 이번 라운드 수익 누적
       if(streak>S.bestStreak) S.bestStreak=streak;
       if(net+bonus>S.bestTrade) S.bestTrade=net+bonus;
       sfx(streak>=5?"legend":"epic"); flash("var(--green)"); spawnCoins(null, Math.min(4,1+Math.floor(streak/2)));
       toast(`💰 +${fmt(net+bonus)}원 청산 (수수료 -${fmt(fee)})${streak>1?` · 🔥${streak}연승`:""}`);
     } else {
-      streak=0; S.money+=Math.max(0, TR.stake+profit-fee);
+      const ret=Math.max(0, TR.stake+profit-fee); streak=0; S.money+=ret;
+      MKT.roundPnl += ret-TR.stake;   // 손실도 라운드 수익에 반영(음수)
       sfx("crash"); flash("var(--red)"); shake();
       toast(`📉 ${fmt(net)}원 (수수료 -${fmt(fee)}) — 연승 리셋`);
     }
@@ -806,8 +845,8 @@
       : `🏆 모든 업적 달성!`;
     $("coachText").textContent = coach();
     const rec=$("record");
-    if(S.bestTrade>0 || S.bestStreak>0){ rec.classList.remove("hidden");
-      rec.innerHTML=`🏆 최고 한 방 <b>+${fmt(S.bestTrade)}원</b> · 🔥 최고 <span class="st">${S.bestStreak}연승</span>`;
+    if(S.bestTrade>0 || S.bestStreak>0 || S.bestRound>0){ rec.classList.remove("hidden");
+      rec.innerHTML=`🏆 한 방 <b>+${fmt(S.bestTrade)}</b> · 🏁 라운드 <b>+${fmt(S.bestRound)}</b> · 🔥 <span class="st">${S.bestStreak}연승</span>`;
     } else rec.classList.add("hidden");
   }
   // 지금 뭘 해야 하나 — 상태별 한 줄 안내(첫 사용자 이탈 방지)
@@ -1020,6 +1059,9 @@
   function tick(){
     const t=now(); let dt=(t-last)/1000; last=t; if(dt>1) dt=1;
     stepMarket(dt);
+    const r=Math.floor(t/ROUND_MS);   // 라운드 경계 → 결과 정산
+    if(r!==MKT.round){ endRound(); MKT.round=r; }
+    renderRound(t);
     S.money += perSec()*dt;
     if(TR.open) marginCall();
     checkAch(); checkEnding();
@@ -1046,6 +1088,7 @@
   }
 
   const had=load();
+  MKT.round = MKT.round0 = Math.floor(now()/ROUND_MS); MKT.roundOpen = MKT.price;   // 라운드 기준점(세션 시작)
   // 파산/빈손 구제 — 봇 0대 & 현금 바닥이면 스타터 자금+봇 지급(0에서 못 벗어나는 상황 제거)
   let rescued=false;
   if(totalBots()===0 && S.money<100){ S.money=Math.max(S.money,2000); S.owned[0]=3; rescued=true; }
