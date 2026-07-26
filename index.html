@@ -610,7 +610,7 @@
     const all=MKT.candles.concat(MKT.cur?[MKT.cur]:[]); if(!all.length) return;
     let hi=-1e9, lo=1e9; all.forEach(c=>{ hi=Math.max(hi,c.h); lo=Math.min(lo,c.l); });
     // 포지션 진입가도 스케일에 포함
-    if(TR.open){ hi=Math.max(hi,TR.entry); lo=Math.min(lo,TR.entry); }
+    if(TR.open){ const lq=liqPrice(); hi=Math.max(hi,TR.entry,lq); lo=Math.min(lo,TR.entry,lq); }
     const pad=(hi-lo)*0.15||4; hi+=pad; lo-=pad;
     const Y=v=> ch - ((v-lo)/(hi-lo))*ch;
     ctx.strokeStyle="rgba(255,255,255,.04)"; ctx.lineWidth=1;
@@ -626,7 +626,14 @@
     // 진입가 라인 (포지션 열렸을 때)
     if(TR.open){ const yE=Y(TR.entry);
       ctx.strokeStyle= TR.side>0? "rgba(39,224,138,.8)":"rgba(255,90,110,.8)"; ctx.setLineDash([5,3]); ctx.lineWidth=1.4;
-      ctx.beginPath(); ctx.moveTo(0,yE); ctx.lineTo(cw,yE); ctx.stroke(); ctx.setLineDash([]); }
+      ctx.beginPath(); ctx.moveTo(0,yE); ctx.lineTo(cw,yE); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle= TR.side>0? "rgba(39,224,138,.95)":"rgba(255,90,110,.95)"; ctx.font="700 9px ui-monospace,monospace";
+      ctx.fillText("진입 "+TR.entry.toFixed(1), 4, yE-3);
+      // 청산가 라인 (빨강 — 닿으면 원금 전액 손실. 레버 클수록 진입가에 바짝 붙음)
+      const yL=Y(liqPrice());
+      ctx.strokeStyle="rgba(255,60,80,.95)"; ctx.setLineDash([2,3]); ctx.lineWidth=1.6;
+      ctx.beginPath(); ctx.moveTo(0,yL); ctx.lineTo(cw,yL); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle="rgba(255,90,110,.98)"; ctx.fillText("⚠ 청산 "+liqPrice().toFixed(1), 4, yL+11); }
     const yNow=Y(MKT.price);
     ctx.strokeStyle="rgba(255,203,69,.45)"; ctx.setLineDash([3,4]); ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(0,yNow); ctx.lineTo(cw,yNow); ctx.stroke(); ctx.setLineDash([]);
@@ -668,6 +675,8 @@
     TR.open=false; updateDesk(); renderHud();
   }
   const marginFloor = () => -0.985 - itemMargBonus();   // 🛡️ 방패로 여유 확대
+  // 청산가: pnlPct==marginFloor 되는 시세. 레버 클수록 진입가에 가까움(위험).
+  const liqPrice = () => TR.entry * (1 + marginFloor()/(TR.lev*TR.side));
   function marginCall(){ // 손실이 원금을 다 먹으면 강제 청산
     if(TR.open && pnlPct()<=marginFloor()){ closeTrade(); toast("⚠ 마진콜 — 강제 청산됨"); }
   }
@@ -679,7 +688,8 @@
     document.querySelectorAll('.seg.amt button').forEach(b=>b.classList.toggle("on", +b.dataset.amt===betPct));
     document.querySelectorAll('.seg.lev button').forEach(b=>b.classList.toggle("on", +b.dataset.lev===betLev));
     const stake=Math.floor(S.money*betPct);
-    $("orderHint").innerHTML = `베팅 <b style="color:var(--gold)">${fmt(stake)}원</b> · 레버 ×${betLev} — 시세 ±10%→손익 ±${betLev*10}% · 수수료 ${(betLev*TRADE_FEE*100).toFixed(1)}%`;
+    const liqDist=(0.985+itemMargBonus())/betLev*100;
+    $("orderHint").innerHTML = `베팅 <b style="color:var(--gold)">${fmt(stake)}원</b> ×${betLev} · 시세±10%→±${betLev*10}% · 수수료 ${(betLev*TRADE_FEE*100).toFixed(1)}% · <b style="color:var(--red)">청산 -${liqDist>=95?"거의없음":liqDist.toFixed(1)+"%"}</b>`;
     // 연승바
     const st=$("streak");
     if(streak>0){ st.classList.remove("hidden");
