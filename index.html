@@ -587,10 +587,12 @@
     if(t>MKT.nextEv){ const r=Math.random(); startEvent(r<0.36?"bull":r<0.66?"crash":"whale"); MKT.nextEv=t+rnd(30000,60000); }
     // 변동성 튜닝: 포지션이 10~30초 살아남아 "버틸까/청산할까" 긴장이 생기도록.
     // 이벤트는 급락/급등이되 초 단위 붕괴가 아니라 수십 초에 걸친 추세로.
-    let drift=0, vol=1.1;
-    if(MKT.event==="bull"){ drift=0.9; vol=1.3; }
-    else if(MKT.event==="crash"){ drift=-1.0; vol=1.6; }
-    const revert=(100-MKT.price)*0.015;
+    // 모멘텀: 추세가 관성으로 이어져 방향이 예측 어렵게(=100 회귀만 노린 무위험 베팅 차단)
+    MKT.mom = (MKT.mom||0)*0.985 + (Math.random()-0.5)*0.6*dt*3;
+    let drift=MKT.mom, vol=1.2;
+    if(MKT.event==="bull"){ drift+=0.8; vol=1.3; }
+    else if(MKT.event==="crash"){ drift-=0.9; vol=1.6; }
+    const revert=(100-MKT.price)*0.004;   // 약한 경계-회귀(신호 아님, 이탈 방지용)
     MKT.price += (drift + revert + (Math.random()-0.5)*vol) * dt*3;
     MKT.price = Math.max(30, Math.min(200, MKT.price));
     if(!MKT.cur) MKT.cur={o:MKT.price,h:MKT.price,l:MKT.price,c:MKT.price};
@@ -642,21 +644,25 @@
     TR.open=true; TR.side=side; TR.entry=MKT.price; TR.stake=stake; TR.lev=betLev;
     sfx("buy"); updateDesk(); renderHud();
   }
+  const TRADE_FEE = 0.015;   // 거래 수수료 = 레버리지 노셔널의 1.5% (작은 스캘핑은 손해 → 실제 움직임을 읽어야 이득)
   function closeTrade(){
     if(!TR.open) return;
     const p=pnlPct(), gross=TR.stake*(1+p), realized=Math.max(0,gross);
+    const fee = TR.stake*TR.lev*TRADE_FEE;   // 노셔널 기준 수수료(레버 클수록 큼)
     let profit=realized-TR.stake;
     let bonus=0;
-    if(profit>0){ profit*=itemTradeMult();   // 🖱️ 아이템: 매매 수익 증폭
-      streak++; if(streak>1) bonus=profit*Math.min(streak-1,10)*0.1; S.money+=TR.stake+profit+bonus;
+    if(profit>0) profit*=itemTradeMult();    // 🖱️ 아이템: 매매 수익 증폭
+    const net = profit - fee;                // 수수료 반영 순손익
+    if(net>0){
+      streak++; if(streak>1) bonus=net*Math.min(streak-1,10)*0.1; S.money+=TR.stake+net+bonus;
       if(streak>S.bestStreak) S.bestStreak=streak;
-      if(profit+bonus>S.bestTrade) S.bestTrade=profit+bonus;
+      if(net+bonus>S.bestTrade) S.bestTrade=net+bonus;
       sfx(streak>=5?"legend":"epic"); flash("var(--green)"); spawnCoins(null, Math.min(4,1+Math.floor(streak/2)));
-      toast(`💰 +${fmt(profit+bonus)}원 청산${streak>1?` · 🔥${streak}연승 (+${fmt(bonus)} 보너스)`:""}`);
+      toast(`💰 +${fmt(net+bonus)}원 청산 (수수료 -${fmt(fee)})${streak>1?` · 🔥${streak}연승`:""}`);
     } else {
-      streak=0; S.money+=realized;
+      streak=0; S.money+=Math.max(0, TR.stake+profit-fee);
       sfx("crash"); flash("var(--red)"); shake();
-      toast(`📉 ${fmt(profit)}원 — 연승 리셋`);
+      toast(`📉 ${fmt(net)}원 (수수료 -${fmt(fee)}) — 연승 리셋`);
     }
     S.trades++;
     TR.open=false; updateDesk(); renderHud();
@@ -673,7 +679,7 @@
     document.querySelectorAll('.seg.amt button').forEach(b=>b.classList.toggle("on", +b.dataset.amt===betPct));
     document.querySelectorAll('.seg.lev button').forEach(b=>b.classList.toggle("on", +b.dataset.lev===betLev));
     const stake=Math.floor(S.money*betPct);
-    $("orderHint").innerHTML = `베팅 <b style="color:var(--gold)">${fmt(stake)}원</b> · 레버 ×${betLev} — 시세 ±10%면 손익 ±${betLev*10}%`;
+    $("orderHint").innerHTML = `베팅 <b style="color:var(--gold)">${fmt(stake)}원</b> · 레버 ×${betLev} — 시세 ±10%→손익 ±${betLev*10}% · 수수료 ${(betLev*TRADE_FEE*100).toFixed(1)}%`;
     // 연승바
     const st=$("streak");
     if(streak>0){ st.classList.remove("hidden");
