@@ -142,7 +142,7 @@
   .syn-chip.on .sv{color:var(--purple)}
   .syn-chip .sd{display:block; font:600 10px/1.3 var(--sans); color:var(--dim); margin-top:3px}
 
-  .tabs{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .tabs{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
   .tab{font:800 13px/1 var(--sans); padding:11px; border-radius:12px; cursor:pointer; background:var(--panel2); border:1px solid var(--edge); color:var(--dim)}
   .tab.on{color:var(--ink); border-color:var(--cyan); box-shadow:0 0 18px rgba(79,214,224,.15)}
   .tab b{color:var(--gold)}
@@ -211,12 +211,14 @@
   .modal .box.end .end-em{font-size:60px; margin-bottom:4px}
   .modal .box.end h2{color:var(--purple); font-size:22px}
 
-  .whale{position:fixed; left:50%; bottom:90px; transform:translateX(-50%) scale(0); z-index:35;
-    width:90px; height:90px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
-    background:radial-gradient(circle at 50% 35%,#8fd6ff,#2a6fa0); border:2px solid #bfe8ff; box-shadow:0 0 34px rgba(79,214,224,.6); font-size:42px; transition:transform .3s cubic-bezier(.2,1.4,.3,1)}
-  .whale.show{transform:translateX(-50%) scale(1); animation:whaleb 1s ease-in-out infinite}
-  @keyframes whaleb{0%,100%{margin-bottom:0}50%{margin-bottom:10px}}
-  .whale .cd{position:absolute; bottom:-6px; font:800 10px/1 var(--mono); color:var(--cyan); background:#08131c; padding:2px 6px; border-radius:6px; border:1px solid #2a6fa0}
+  /* 고래 — 방해 안 되게 우측 상단 구석, 작게. 탭할수록 더 챙김(연타). */
+  .whale{position:fixed; right:8px; top:60px; left:auto; bottom:auto; transform:scale(0); z-index:35;
+    width:72px; height:72px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
+    background:radial-gradient(circle at 50% 35%,#8fd6ff,#2a6fa0); border:2px solid #bfe8ff; box-shadow:0 0 30px rgba(79,214,224,.6); font-size:36px; transition:transform .25s cubic-bezier(.2,1.4,.3,1)}
+  .whale.show{transform:scale(1); animation:whaleb .8s ease-in-out infinite}
+  .whale:active{transform:scale(.86)}
+  @keyframes whaleb{0%,100%{margin-top:0}50%{margin-top:-8px}}
+  .whale .cd{position:absolute; bottom:-8px; white-space:nowrap; font:800 10px/1 var(--mono); color:var(--cyan); background:#08131c; padding:3px 6px; border-radius:6px; border:1px solid #2a6fa0}
 
   #fx{position:fixed; inset:0; pointer-events:none; z-index:45; overflow:hidden}
   .coin{position:absolute; font-size:18px; will-change:transform,opacity; animation:coinUp .8s ease-out forwards}
@@ -224,6 +226,28 @@
   .flash{position:fixed; inset:0; pointer-events:none; z-index:44; opacity:0}
   .flash.go{animation:flash .5s ease-out}
   @keyframes flash{0%{opacity:.5}100%{opacity:0}}
+
+  /* 현금 바 (최상단 — 항상 크게 보임) */
+  .cashbar{background:linear-gradient(180deg,#221b0c,#161007); border:1px solid var(--gold);
+    border-radius:16px; padding:11px 16px; box-shadow:0 0 26px rgba(255,203,69,.16)}
+  .cashbar .cb-top{display:flex; justify-content:space-between; align-items:center}
+  .cashbar .cb-cap{font:800 11px/1 var(--sans); letter-spacing:.5px; color:#f0d9a0}
+  .cashbar .cb-inc{font:800 12px/1 var(--mono); color:var(--green)}
+  .cashbar .money{font:800 34px/1 var(--mono); color:var(--gold); letter-spacing:-.5px; margin-top:3px;
+    font-variant-numeric:tabular-nums; text-shadow:0 2px 20px rgba(255,203,69,.35)}
+  .cashbar .money.bump{animation:bump .18s ease-out}
+
+  /* 상점(아이템/VIP) */
+  .shop-cap{font:700 11.5px/1.4 var(--sans); color:var(--dim); text-align:center; padding:2px 0 4px}
+  .vip-card{margin-top:2px}
+  .vip{display:flex; flex-direction:column; gap:5px; padding:13px; border-radius:13px; text-align:center;
+    background:linear-gradient(180deg,#2a1f3f,#181026); border:1px solid var(--purple)}
+  .vip b{font:800 15px/1 var(--sans); color:#e9d6ff}
+  .vip span{font:600 11px/1.3 var(--sans); color:var(--dim)}
+  .vip button{margin-top:4px; font:800 14px/1 var(--sans); padding:12px; border-radius:11px; cursor:pointer;
+    background:linear-gradient(180deg,#c9a6ff,#8b5cf0); border:1px solid var(--purple); color:#1a1030}
+  .vip small{font:600 10px/1.3 var(--sans); color:var(--faint)}
+  .vip.on{border-color:var(--gold); background:linear-gradient(180deg,#2a2410,#1a1608); color:var(--gold); font:800 14px/1.4 var(--sans); padding:14px}
 
   /* 코치 (지금 뭘 해야 하나) */
   .coach{display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:12px;
@@ -245,17 +269,16 @@
 </style>
 
 <div class="app" id="app">
+  <div class="cashbar">
+    <div class="cb-top"><span class="cb-cap">💰 내 보유 현금</span><span class="cb-inc" id="cbInc">봇 자동수입 +0/s</span></div>
+    <div class="money" id="money">2,000원</div>
+  </div>
   <div class="market" id="market">
     <canvas id="chart"></canvas>
     <div class="mkt-top">
       <div class="mkt-name">시장 지수<b id="mktName">KOSPI·CRYPTO 종합</b>
         <div class="presti" id="presti">명성 ×1.00</div></div>
       <div class="mkt-price"><div class="p" id="mktPrice">100.0</div><div class="c up" id="mktChg">+0.0%</div></div>
-    </div>
-    <div class="wallet">
-      <div class="cap">보유 현금</div>
-      <div class="money" id="money">40원</div>
-      <div class="rate">봇 수입 <b id="rate">0</b>원/s</div>
     </div>
     <div class="event-banner" id="eventBanner"></div>
   </div>
@@ -307,6 +330,7 @@
   <div class="tabs">
     <button class="tab on" id="tabBots" data-t="bots">🤖 봇 <b id="botCount"></b></button>
     <button class="tab" id="tabGacha" data-t="gacha">🎰 뽑기</button>
+    <button class="tab" id="tabShop" data-t="shop">🛒 상점</button>
   </div>
 
   <div class="syn" id="synStrip"></div>
@@ -325,6 +349,12 @@
     <div class="coll" id="coll"></div>
     <button class="presti-btn" id="prestiBtn" disabled>제국 매각 (환생)
       <small id="prestiSub">자산 1억 이상이면 영구 배수를 받고 새로 시작</small></button>
+  </div>
+
+  <div class="panel hidden" id="viewShop">
+    <div class="shop-cap">🛒 장비를 사면 <b style="color:var(--ink)">영구 보너스</b> + 내 컬렉션에 쌓입니다</div>
+    <div id="viewItems" style="display:flex;flex-direction:column;gap:7px"></div>
+    <div class="vip-card" id="vipCard"></div>
   </div>
 
   <div class="save-dot" id="saveDot">자동 저장됨</div>
@@ -405,12 +435,30 @@
     {k:"L", w:.03, mult:1.60, em:"🟨", nm:"레전드", col:"L"},
   ];
 
+  // ── 아이템(장비) — 사면 영구 보너스 + 소유 컬렉션(소유욕) ─────────
+  const ITEMS = [
+    {id:"mouse", ic:"🖱️", n:"황금 마우스",  base:600,    type:"trade", per:0.08, desc:"매매 청산 수익 +8% / 개"},
+    {id:"term",  ic:"🖥️", n:"VIP 단말기",   base:2500,   type:"bot",   per:0.12, desc:"봇 자동수입 +12% / 개"},
+    {id:"charm", ic:"🍀", n:"행운의 부적",   base:9000,   type:"whale", per:0.5,  desc:"고래 보상 +50% / 개"},
+    {id:"shield",ic:"🛡️", n:"손절 방패",     base:30000,  type:"marg",  per:1,    desc:"청산 마진 여유 +1%p / 개 (더 버팀)"},
+    {id:"crown", ic:"👑", n:"제왕의 왕관",   base:200000, type:"all",   per:0.05, desc:"봇·매매·고래 모든 수입 +5% / 개"},
+  ];
+  const itemCount = id => (S.items && S.items[id]) || 0;
+  const itemSum = type => ITEMS.reduce((s,i)=> (i.type===type||i.type==="all")? s+itemCount(i.id)*i.per : s, 0);
+  const itemBotMult   = () => 1 + itemSum("bot");
+  const itemTradeMult = () => 1 + itemSum("trade");
+  const itemWhaleMult = () => 1 + itemSum("whale");
+  const itemMargBonus = () => itemSum("marg") * 0.01;   // 방패 1개당 청산 여유 +1%p
+  const vipMult = () => S.vip ? 2 : 1;
+  const itemCost = it => Math.ceil(it.base * Math.pow(1.7, itemCount(it.id)));
+
   let S;
   const fresh = () => ({
     // 시작부터 굴릴 자금 + 스타터 봇 1대(항상 수입이 들어와 "돈이 없다"는 막힘 방지)
     money:2000, owned:BOTS.map((_,i)=> i===0?3:0), gachaMult:1, pulls:0,
     coll:{C:0,R:0,E:0,L:0}, fame:0, lastTs:now(), daily:{last:"",streak:0},
-    boostUntil:0, freeGachaAt:0, ach:{}, endings:{}, trades:0, bestStreak:0, bestTrade:0, seenTut:0
+    boostUntil:0, freeGachaAt:0, ach:{}, endings:{}, trades:0, bestStreak:0, bestTrade:0, seenTut:0,
+    items:{}, vip:0
   });
   const KEY = "trading-empire-v1";
   function load(){
@@ -425,6 +473,7 @@
       S.daily = Object.assign({last:"",streak:0}, S.daily||{}); S.daily.streak=num(S.daily.streak);
       S.ach = (S.ach&&typeof S.ach==="object")? S.ach : {};
       S.endings = (S.endings&&typeof S.endings==="object")? S.endings : {};
+      S.items = (S.items&&typeof S.items==="object")? S.items : {}; S.vip=num(S.vip);
       return true; } }catch(e){}
     S = fresh(); return false;
   }
@@ -486,7 +535,7 @@
   const milestone = id => Math.pow(2, Math.floor(S.owned[id]/25));
   // 봇(방치) 수입 = 꾸준한 자금줄. 시세와 무관(예측가능). 시세는 '트레이딩'에서 쓴다.
   const perSec = () => BOTS.reduce((s,b)=> s + S.owned[b.id]*b.rate*milestone(b.id), 0)
-    * S.gachaMult * fameMult() * synergyMult() * boostMult();
+    * S.gachaMult * fameMult() * synergyMult() * boostMult() * itemBotMult() * vipMult();
   function bulkCost(b, n){ const r=1.15, base=b.base*Math.pow(r,S.owned[b.id]);
     return Math.ceil(base*(Math.pow(r,n)-1)/(r-1)); }
   function maxBuy(b){ const r=1.15, base=b.base*Math.pow(r,S.owned[b.id]);
@@ -526,14 +575,14 @@
     const b=$("eventBanner"); b.className="event-banner show "+kind;
     if(kind==="bull"){ b.textContent="🔥 불장! 지수 급등 — 롱 타이밍"; sfx("bull"); flash("var(--green)"); }
     else if(kind==="crash"){ b.textContent="💥 폭락! 지수 급락 — 숏 타이밍"; sfx("crash"); flash("var(--red)"); shake(); }
-    else if(kind==="whale"){ b.textContent="🐋 고래 출현! 탭해서 한몫"; sfx("whale");
-      MKT.whaleUntil=now()+9000; MKT.whaleShown=true; $("whale").classList.add("show"); }
+    else if(kind==="whale"){ b.textContent="🐋 고래 출현! 연타해서 챙기세요"; sfx("whale");
+      MKT.whaleUntil=now()+9000; MKT.whaleShown=true; MKT.whaleTaps=0; MKT.whaleReward=0; $("whale").classList.add("show"); }
   }
   function endEvent(){ MKT.event=null; $("eventBanner").className="event-banner"; }
   function stepMarket(dt){
     const t=now();
     if(MKT.event && t>MKT.evUntil) endEvent();
-    if(MKT.whaleShown && t>MKT.whaleUntil){ MKT.whaleShown=false; $("whale").classList.remove("show"); }
+    if(MKT.whaleShown && t>MKT.whaleUntil) endWhale();
     if(t>MKT.nextEv){ const r=Math.random(); startEvent(r<0.36?"bull":r<0.66?"crash":"whale"); MKT.nextEv=t+rnd(30000,60000); }
     // 변동성 튜닝: 포지션이 10~30초 살아남아 "버틸까/청산할까" 긴장이 생기도록.
     // 이벤트는 급락/급등이되 초 단위 붕괴가 아니라 수십 초에 걸친 추세로.
@@ -594,9 +643,11 @@
   }
   function closeTrade(){
     if(!TR.open) return;
-    const p=pnlPct(), gross=TR.stake*(1+p), realized=Math.max(0,gross), profit=realized-TR.stake;
+    const p=pnlPct(), gross=TR.stake*(1+p), realized=Math.max(0,gross);
+    let profit=realized-TR.stake;
     let bonus=0;
-    if(profit>0){ streak++; if(streak>1) bonus=profit*Math.min(streak-1,10)*0.1; S.money+=realized+bonus;
+    if(profit>0){ profit*=itemTradeMult();   // 🖱️ 아이템: 매매 수익 증폭
+      streak++; if(streak>1) bonus=profit*Math.min(streak-1,10)*0.1; S.money+=TR.stake+profit+bonus;
       if(streak>S.bestStreak) S.bestStreak=streak;
       if(profit+bonus>S.bestTrade) S.bestTrade=profit+bonus;
       sfx(streak>=5?"legend":"epic"); flash("var(--green)"); spawnCoins(null, Math.min(4,1+Math.floor(streak/2)));
@@ -609,8 +660,9 @@
     S.trades++;
     TR.open=false; updateDesk(); renderHud();
   }
+  const marginFloor = () => -0.985 - itemMargBonus();   // 🛡️ 방패로 여유 확대
   function marginCall(){ // 손실이 원금을 다 먹으면 강제 청산
-    if(TR.open && pnlPct()<=-0.985){ closeTrade(); toast("⚠ 마진콜 — 강제 청산됨"); }
+    if(TR.open && pnlPct()<=marginFloor()){ closeTrade(); toast("⚠ 마진콜 — 강제 청산됨"); }
   }
   function updateDesk(){
     const open=TR.open;
@@ -636,9 +688,9 @@
     const pn=$("posPnl"); pn.textContent=(p>=0?"+":"")+(p*100).toFixed(1)+"%"; pn.className="pos-pnl "+(win?"up":"dn");
     $("posVal").textContent = `평가 ${fmt(val)}원 (${profit>=0?"+":""}${fmt(profit)}원)`;
     // 마진 게이지: -98.5%에서 청산. 남은 여력 표시
-    const marg=Math.max(0, Math.min(1, (p+0.985)/1.985));
+    const fl=marginFloor(); const marg=Math.max(0, Math.min(1, (p-fl)/(1+fl)));
     $("margBar").style.width=(marg*100).toFixed(0)+"%";
-    $("margLbl").textContent = win? "안전 — 더 버틸까, 지금 챙길까?" : `청산까지 ${((0.985+p)*100).toFixed(0)}% 여력`;
+    $("margLbl").textContent = win? "안전 — 더 버틸까, 지금 챙길까?" : `청산까지 ${((p-marginFloor())*100).toFixed(0)}% 여력`;
   }
 
   // ── 렌더 ───────────────────────────────────────────────────────
@@ -685,8 +737,8 @@
     const mEl=$("money"); mEl.textContent=fmt(S.money)+"원";
     if(S.money>lastMoney+0.5){ mEl.classList.remove("bump"); void mEl.offsetWidth; mEl.classList.add("bump"); }
     lastMoney=S.money;
-    $("rate").textContent = fmt(perSec());
-    $("rate").parentElement.style.color = boostOn()? "var(--gold)":"var(--green)";
+    $("cbInc").textContent = "봇 자동수입 +"+fmt(perSec())+"원/s"+(S.vip?" 💎":"");
+    $("cbInc").style.color = boostOn()? "var(--gold)":"var(--green)";
     $("presti").textContent = "명성 ×"+fameMult().toFixed(2);
     $("mktPrice").textContent = MKT.price.toFixed(1);
     const chg=(MKT.price-100), cEl=$("mktChg");
@@ -719,7 +771,46 @@
       ? `지금 환생하면 명성 +${fg} (봇수입 영구 +${(fg*15)}%). 봇·자산 초기화.`
       : `자산 ${fmt(prestiReq)}원 이상이면 환생 가능 (지금 ${fmt(totalWorth())})`;
   }
-  function renderAll(){ renderHud(); renderBots(); renderGacha(); renderDaily(); renderBoost(); updateDesk(); }
+  // ── 상점(아이템·VIP) ──────────────────────────────────────────
+  const itemRows=[];
+  function buildItems(){
+    const v=$("viewItems"); v.innerHTML="";
+    ITEMS.forEach(it=>{
+      const el=document.createElement("button"); el.className="bot";
+      el.innerHTML=`<div class="ic">${it.ic}</div>
+        <div class="mid"><div class="n">${it.n}<em class="lv"></em></div><div class="sub">${it.desc}</div></div>
+        <div class="buy"><div class="cost"></div><div class="cnt">+1</div></div>`;
+      el.onclick=()=>buyItem(it); v.appendChild(el); itemRows[it.id]=el;
+    });
+  }
+  function renderItems(){
+    ITEMS.forEach(it=>{
+      const el=itemRows[it.id]; if(!el) return;
+      const own=itemCount(it.id), c=itemCost(it), can=S.money>=c;
+      el.classList.toggle("afford", can); el.disabled=!can;
+      el.querySelector(".lv").textContent = own>0? `보유 ${own}` : "";
+      el.querySelector(".cost").textContent = fmt(c)+"원";
+    });
+    $("vipCard").innerHTML = S.vip
+      ? `<div class="vip on">💎 VIP 활성 — 봇 자동수입 ×2 적용 중</div>`
+      : `<div class="vip"><b>💎 VIP 패스</b><span>봇 자동수입 영구 ×2 + 프리미엄 혜택</span>
+         <button id="vipBtn">현질하기</button>
+         <small>실제 결제는 정식 배포 시 연동됩니다 — 지금은 광고로 체험하세요</small></div>`;
+    const vb=$("vipBtn"); if(vb) vb.onclick=tryVip;
+  }
+  function buyItem(it){
+    const c=itemCost(it);
+    if(S.money<c){ toast("현금이 부족합니다"); return; }
+    S.money-=c; S.items[it.id]=itemCount(it.id)+1;
+    sfx("epic"); flash("var(--gold)"); toast(`${it.ic} ${it.n} 획득! (보유 ${S.items[it.id]})`); renderAll();
+  }
+  function tryVip(){
+    // 실제 결제 미연동(정직) — 프로토타입은 광고로 VIP 체험 제공
+    toast("실제 결제는 배포 후 연동됩니다 — 광고 보고 VIP 체험!");
+    watchAd("vip");
+  }
+
+  function renderAll(){ renderHud(); renderBots(); renderItems(); renderGacha(); renderDaily(); renderBoost(); updateDesk(); }
 
   function buy(b){
     const n=wantN(b); if(n<1) return;
@@ -738,10 +829,19 @@
   function flash(color){ const f=$("flash"); f.style.background=`radial-gradient(circle at 50% 40%,${color},transparent 70%)`;
     f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); }
   function shake(){ const a=$("app"); a.classList.remove("shake"); void a.offsetWidth; a.classList.add("shake"); setTimeout(()=>a.classList.remove("shake"),520); }
+  // 고래: 탭할 때마다 챙김(연타=더 많이). 6번 채우거나 시간초과면 종료. 탭으로 쉽게 없앰.
   function grabWhale(ev){
+    if(!MKT.whaleShown) return;
+    MKT.whaleTaps=(MKT.whaleTaps||0)+1;
+    const chunk=Math.max(250, perSec()*35 + S.money*0.02) * itemWhaleMult();
+    MKT.whaleReward=(MKT.whaleReward||0)+chunk; S.money+=chunk;
+    sfx("whale"); spawnCoins(ev,2); renderHud();
+    if(MKT.whaleTaps>=6) endWhale();
+  }
+  function endWhale(){
     if(!MKT.whaleShown) return; MKT.whaleShown=false; $("whale").classList.remove("show");
-    const reward=Math.max(500, perSec()*140 + S.money*0.05);
-    S.money+=reward; sfx("legend"); spawnCoins(ev,5); flash("var(--cyan)"); toast("🐋 고래 포획! +"+fmt(reward)+"원"); renderAll();
+    if(MKT.whaleTaps>0){ flash("var(--cyan)"); toast(`🐋 ${MKT.whaleTaps}연타! 총 +${fmt(MKT.whaleReward)}원`); renderAll(); }
+    MKT.whaleTaps=0; MKT.whaleReward=0;
   }
 
   function dayStr(ts){ const d=new Date(ts); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
@@ -794,6 +894,7 @@
     if($("adClaim").disabled) return; $("adModal").hidden=true;
     if(adReward==="boost"){ S.boostUntil=Math.max(S.boostUntil,now())+4*3600*1000; sfx("epic"); toast("⚡ 2배 부스트 4시간 발동!"); }
     else if(adReward==="freeGacha"){ S.freeGachaAt=now()+20*60*1000; pull(true); }
+    else if(adReward==="vip"){ S.vip=1; sfx("legend"); flash("var(--gold)"); toast("💎 VIP 활성! 봇 자동수입 ×2"); }
     adReward=null; renderAll();
   }
   function hhmmss(ms){ const s=Math.max(0,Math.floor(ms/1000)), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
@@ -841,7 +942,7 @@
     checkAch(); checkEnding();
     renderHud(); renderBots(); renderBoost();
     if(TR.open) renderPos();
-    if(MKT.whaleShown) $("whaleCd").textContent=Math.ceil((MKT.whaleUntil-t)/1000)+"초";
+    if(MKT.whaleShown) $("whaleCd").textContent=(MKT.whaleTaps>0? MKT.whaleTaps+"연타":"탭!");
     if(!$("viewGacha").classList.contains("hidden")) renderGacha();
     if(boostWas && !boostOn()) toast("부스트 종료 — 다시 광고로 연장 가능");
     boostWas=boostOn();
@@ -852,10 +953,12 @@
   function tab(which){
     $("tabBots").classList.toggle("on", which==="bots");
     $("tabGacha").classList.toggle("on", which==="gacha");
+    $("tabShop").classList.toggle("on", which==="shop");
     $("viewBots").classList.toggle("hidden", which!=="bots");
     $("synStrip").classList.toggle("hidden", which!=="bots");
     $("buyAmtBar").classList.toggle("hidden", which!=="bots");
     $("viewGacha").classList.toggle("hidden", which!=="gacha");
+    $("viewShop").classList.toggle("hidden", which!=="shop");
     renderAll();
   }
 
@@ -863,7 +966,7 @@
   // 파산/빈손 구제 — 봇 0대 & 현금 바닥이면 스타터 자금+봇 지급(0에서 못 벗어나는 상황 제거)
   let rescued=false;
   if(totalBots()===0 && S.money<100){ S.money=Math.max(S.money,2000); S.owned[0]=3; rescued=true; }
-  buildBots(); fitChart(); renderAll();
+  buildBots(); buildItems(); fitChart(); renderAll();
   MKT.nextEv=now()+rnd(10000,18000);
   if(had) grantOffline();
   if(rescued){ save(); setTimeout(()=>toast("💰 시드머니 2,000원 + 스캘핑 봇 3대 지급! 이제 굴려보세요"),500); }
@@ -875,7 +978,7 @@
   $("closeBtn").onclick=closeTrade;
   document.querySelectorAll('.seg.amt button').forEach(b=>b.onclick=()=>{ betPct=+b.dataset.amt; updateDesk(); });
   document.querySelectorAll('.seg.lev button').forEach(b=>b.onclick=()=>{ betLev=+b.dataset.lev; updateDesk(); });
-  $("tabBots").onclick=()=>tab("bots"); $("tabGacha").onclick=()=>tab("gacha");
+  $("tabBots").onclick=()=>tab("bots"); $("tabGacha").onclick=()=>tab("gacha"); $("tabShop").onclick=()=>tab("shop");
   $("pullBtn").onclick=()=>pull(false); $("reveal").onclick=closeReveal;
   $("prestiBtn").onclick=prestige;
   $("whale").onclick=(e)=>grabWhale(e);
