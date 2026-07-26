@@ -61,7 +61,8 @@
   .desk{background:var(--panel); border:1px solid var(--edge); border-radius:16px; padding:11px; display:flex; flex-direction:column; gap:9px}
   .row{display:flex; align-items:center; gap:6px}
   .row .lbl{flex:0 0 46px; font:700 11px/1.2 var(--sans); color:var(--dim)}
-  .seg{flex:1; display:flex; gap:5px}
+  .seg{flex:1; display:flex; gap:4px}
+  .seg.lev button{font-size:11px; padding:8px 1px}
   .seg button{flex:1; font:800 12px/1 var(--mono); padding:8px 2px; border-radius:9px; cursor:pointer;
     background:var(--panel2); border:1px solid var(--edge); color:var(--dim); transition:all .1s}
   .seg button.on{color:#0a1508; background:linear-gradient(180deg,#3ff09a,#1fb96f); border-color:#35c07d}
@@ -99,6 +100,12 @@
   .streak.hidden{display:none}
   .streak .flames{font-size:14px}
   .streak b{font-family:var(--mono)}
+  /* 최고 기록(로컬 명예의 전당) */
+  .record{display:flex; align-items:center; justify-content:center; gap:12px; padding:8px 10px; border-radius:11px;
+    background:var(--panel2); border:1px solid var(--edge); font:700 11.5px/1.2 var(--sans); color:var(--dim)}
+  .record.hidden{display:none}
+  .record b{font-family:var(--mono); color:var(--gold)}
+  .record .st{color:var(--purple)}
 
   .goal-strip{font:600 12px/1.4 var(--sans); color:var(--dim); background:var(--panel2);
     border:1px solid var(--edge); border-radius:11px; padding:8px 12px; text-align:center}
@@ -303,6 +310,7 @@
       <div class="seg lev">
         <button data-lev="1">×1</button><button data-lev="2" class="on">×2</button>
         <button data-lev="5">×5</button><button data-lev="10">×10</button>
+        <button data-lev="50">×50</button><button data-lev="100">×100</button>
       </div>
     </div>
     <div class="trade-btns">
@@ -323,6 +331,7 @@
   </div>
 
   <div class="streak hidden" id="streak"></div>
+  <div class="record hidden" id="record"></div>
 
   <div class="goal-strip" id="goalStrip"></div>
 
@@ -503,6 +512,8 @@
   const synergyMult = () => SYNERGIES.reduce((m,s)=> s.on()? m*s.mult() : m, 1);
 
   const totalBots = () => BOTS.reduce((s,_,i)=>s+S.owned[i],0);
+  // 봇 인프라 보너스: 보유 봇이 많을수록 매매 청산 수익↑ → 후반에도 봇 사는 이유(무용지물 방지)
+  const botTradeMult = () => 1 + Math.min(2.0, totalBots()*0.001);   // 봇 1대당 +0.1%, 최대 +200%(2000대)
   const ACH = [
     {id:"t1",   name:"첫 거래",    need:()=>S.trades,    goal:1,   desc:"트레이드 1회", give:()=>S.money+=300, rt:"+300원"},
     {id:"b10",  name:"첫 함대",   need:()=>totalBots(), goal:10,  desc:"봇 10대",   give:()=>S.money+=500,  rt:"+500원"},
@@ -597,13 +608,16 @@
     // 변동성 튜닝: 포지션이 10~30초 살아남아 "버틸까/청산할까" 긴장이 생기도록.
     // 이벤트는 급락/급등이되 초 단위 붕괴가 아니라 수십 초에 걸친 추세로.
     // 모멘텀: 추세가 관성으로 이어져 방향이 예측 어렵게(=100 회귀만 노린 무위험 베팅 차단)
-    MKT.mom = (MKT.mom||0)*0.985 + (Math.random()-0.5)*0.6*dt*3;
-    let drift=MKT.mom, vol=1.2;
-    if(MKT.event==="bull"){ drift+=0.8; vol=1.3; }
-    else if(MKT.event==="crash"){ drift-=0.9; vol=1.6; }
-    const revert=(100-MKT.price)*0.004;   // 약한 경계-회귀(신호 아님, 이탈 방지용)
+    // 모멘텀 추세(더 오래·크게) — 방향 예측 어렵고 드라마틱하게
+    MKT.mom = (MKT.mom||0)*0.99 + (Math.random()-0.5)*1.0*dt*3;
+    let drift=MKT.mom, vol=1.7;
+    if(MKT.event==="bull"){ drift+=1.0; vol=1.9; }
+    else if(MKT.event==="crash"){ drift-=1.1; vol=2.2; }
+    const revert=(100-MKT.price)*0.004;   // 약한 경계-회귀(신호 아님)
     MKT.price += (drift + revert + (Math.random()-0.5)*vol) * dt*3;
-    MKT.price = Math.max(30, Math.min(200, MKT.price));
+    // 가끔 급등락 스파이크(꼬리 긴 캔들 = 페이크아웃·손절유발 → "정직하지 않은" 차트)
+    if(Math.random() < 0.010) MKT.price += (Math.random()-0.5) * rnd(6,18);
+    MKT.price = Math.max(25, Math.min(230, MKT.price));
     if(!MKT.cur) MKT.cur={o:MKT.price,h:MKT.price,l:MKT.price,c:MKT.price};
     MKT.cur.c=MKT.price; MKT.cur.h=Math.max(MKT.cur.h,MKT.price); MKT.cur.l=Math.min(MKT.cur.l,MKT.price);
     MKT.tC += dt*1000;
@@ -676,14 +690,15 @@
     TR.open=true; TR.side=side; TR.entry=MKT.price; TR.stake=stake; TR.lev=betLev;
     sfx("buy"); updateDesk(); renderHud();
   }
-  const TRADE_FEE = 0.015;   // 거래 수수료 = 레버리지 노셔널의 1.5% (작은 스캘핑은 손해 → 실제 움직임을 읽어야 이득)
+  // 수수료 = 스테이크 대비 (기본 2% + 레버당 0.3%). 저레버 스캘핑은 기본 2%로 억제, 고레버는 비싸지만 가능.
+  const feeFrac = lev => 0.02 + lev*0.003;   // ×2=2.6% ×10=5% ×50=17% ×100=32%
   function closeTrade(){
     if(!TR.open) return;
     const p=pnlPct(), gross=TR.stake*(1+p), realized=Math.max(0,gross);
-    const fee = TR.stake*TR.lev*TRADE_FEE;   // 노셔널 기준 수수료(레버 클수록 큼)
+    const fee = TR.stake*feeFrac(TR.lev);
     let profit=realized-TR.stake;
     let bonus=0;
-    if(profit>0) profit*=itemTradeMult();    // 🖱️ 아이템: 매매 수익 증폭
+    if(profit>0) profit*=itemTradeMult()*botTradeMult();   // 🖱️아이템 + 🤖봇인프라: 매매 수익 증폭
     const net = profit - fee;                // 수수료 반영 순손익
     if(net>0){
       streak++; if(streak>1) bonus=net*Math.min(streak-1,10)*0.1; S.money+=TR.stake+net+bonus;
@@ -713,8 +728,8 @@
     document.querySelectorAll('.seg.amt button').forEach(b=>b.classList.toggle("on", +b.dataset.amt===betPct));
     document.querySelectorAll('.seg.lev button').forEach(b=>b.classList.toggle("on", +b.dataset.lev===betLev));
     const stake=Math.floor(S.money*betPct);
-    const liqDist=(0.985+itemMargBonus())/betLev*100;
-    $("orderHint").innerHTML = `베팅 <b style="color:var(--gold)">${fmt(stake)}원</b> ×${betLev} · 시세±10%→±${betLev*10}% · 수수료 ${(betLev*TRADE_FEE*100).toFixed(1)}% · <b style="color:var(--red)">청산 -${liqDist>=95?"거의없음":liqDist.toFixed(1)+"%"}</b>`;
+    const liqDist=(0.985+itemMargBonus())/betLev*100, botB=(botTradeMult()-1)*100;
+    $("orderHint").innerHTML = `베팅 <b style="color:var(--gold)">${fmt(stake)}원</b> ×${betLev} · 손익±${betLev*10}% · 수수료 ${(feeFrac(betLev)*100).toFixed(1)}% · <b style="color:var(--red)">청산 -${liqDist>=95?"거의없음":liqDist.toFixed(1)+"%"}</b>${botB>=1?` · <b style="color:var(--green)">🤖봇 +${botB.toFixed(0)}%</b>`:""}`;
     // 연승바
     const st=$("streak");
     if(streak>0){ st.classList.remove("hidden");
@@ -790,6 +805,10 @@
       ? `🎯 <b>${a.name}</b> (${a.desc}) <span class="pg">${fmt(Math.min(a.need(),a.goal))}/${fmt(a.goal)}</span><span class="rw">${a.rt}</span>`
       : `🏆 모든 업적 달성!`;
     $("coachText").textContent = coach();
+    const rec=$("record");
+    if(S.bestTrade>0 || S.bestStreak>0){ rec.classList.remove("hidden");
+      rec.innerHTML=`🏆 최고 한 방 <b>+${fmt(S.bestTrade)}원</b> · 🔥 최고 <span class="st">${S.bestStreak}연승</span>`;
+    } else rec.classList.add("hidden");
   }
   // 지금 뭘 해야 하나 — 상태별 한 줄 안내(첫 사용자 이탈 방지)
   function coach(){
