@@ -242,6 +242,7 @@
   .modal .box .amt{font:800 30px/1 var(--mono); color:var(--gold); margin:14px 0; text-shadow:0 0 20px rgba(255,203,69,.3)}
   .modal .box p{font:600 12px/1.5 var(--sans); color:var(--dim)}
   .modal .box button{margin-top:16px; font:800 15px/1 var(--sans); padding:14px 30px; border-radius:12px; cursor:pointer; background:linear-gradient(180deg,#2a2410,#1c1a0c); border:1px solid var(--gold); color:#ffe6a3}
+  .modal .box button.ghost{margin-top:8px; padding:11px 22px; font-size:13px; background:transparent; border-color:#3a4256; color:#aeb6c6}
   .modal .box.end{border-color:var(--purple); box-shadow:0 0 60px rgba(185,139,255,.4)}
   .modal .box.end .end-em{font-size:60px; margin-bottom:4px}
   .modal .box.end h2{color:var(--purple); font-size:22px}
@@ -316,7 +317,7 @@
 
 <div class="app" id="app">
   <div class="cashbar">
-    <div class="cb-top"><span class="cb-cap">💰 내 보유 현금</span><span class="cb-inc" id="cbInc">봇 자동수입 +0/s</span></div>
+    <div class="cb-top"><span class="cb-cap">💼 이번 판 자금</span><span class="cb-inc" id="cbInc">🏔 최고 · 🏆 기록 · 🏦 은행</span></div>
     <div class="money" id="money">2,000원</div>
   </div>
   <div class="market" id="market">
@@ -455,10 +456,10 @@
   <div class="end-em" style="font-size:50px">🏦</div>
   <h2>트레이딩 제국에 오신 걸 환영합니다</h2>
   <div class="tut-steps">
-    <p><b>💰 위 숫자가 당신의 현금</b>입니다. 이걸 불리는 게 전부예요.</p>
-    <p><b>📈 버는 법 ① 차트 매매 (핵심)</b><br>오를 것 같으면 <span class="k long">▲롱</span>, 내릴 것 같으면 <span class="k short">▼숏</span>. 맞으면 현금이 불고, <b>[청산]</b>으로 챙깁니다. 이길수록 <b>연승 보너스</b>!</p>
-    <p><b>🤖 버는 법 ② 봇 구매</b><br>아래 <b>[봇]</b> 탭에서 봇을 사면 <b>가만히 둬도 자동으로</b> 현금이 쌓여요. (매매 실탄)</p>
-    <p><b>🎯 목표</b> — 봇으로 실탄 모으고 → 차트로 크게 굴려 → 제국을 키워 <b>명예의 전당</b>까지!</p>
+    <p><b>💼 위 숫자가 이번 판 자금</b>입니다. 한 판(run) 동안 이걸 최대한 크게 불리세요.</p>
+    <p><b>📈 매매 (핵심)</b><br>오를 것 같으면 <span class="k long">▲롱</span>, 내릴 것 같으면 <span class="k short">▼숏</span>. 맞으면 자금이 불고, <b>[청산]</b>으로 챙깁니다. 이길수록 <b>연승 보너스</b>!</p>
+    <p><b>⚠ 파산하면 판 끝!</b><br>레버리지를 높이면 크게 벌지만 <b>청산당해 자금이 바닥나면 그 판은 종료</b>됩니다. 도달한 <b>최고 자금이 점수</b>예요.</p>
+    <p><b>🏦 은행 &amp; 장비</b><br>봇·오프라인 수입은 <b>은행</b>에 쌓입니다. 은행으로 <b>[봇]·[상점]</b>에서 장비를 사면 <b>매매 수익 배수가 영구히</b> 올라 다음 판이 강해져요.</p>
   </div>
   <button id="tutClose">시작하기 ▸</button>
 </div></div>
@@ -469,6 +470,15 @@
   <p id="endSub">당신은 시장을 정복했습니다.</p>
   <div class="stat" id="endStat"></div>
   <button id="endClose">계속 플레이 ▸</button>
+</div></div>
+
+<div class="modal" id="goModal" hidden><div class="box end">
+  <div class="end-em">💥</div>
+  <h2 id="goTitle">청산 — 파산!</h2>
+  <p id="goSub">이번 판은 여기까지. 봇·장비로 매매력을 키우면 다음 판이 강해집니다.</p>
+  <div class="stat" id="goStat"></div>
+  <button id="goRestart">🔄 새 판 시작 ▸</button>
+  <button id="goShare" class="ghost">🏆 점수 자랑하기</button>
 </div></div>
 
 <script>
@@ -512,13 +522,17 @@
   const vipMult = () => S.vip ? 2 : 1;
   const itemCost = it => Math.ceil(it.base * Math.pow(1.7, itemCount(it.id)));
 
+  // ── 런(roguelike): 매매는 판별 자금으로. 청산당해 바닥나면 판 종료·점수 확정 ──
+  const STARTING = 10000, BUST = Math.round(STARTING*0.05);   // 시작 자금 / 파산 기준(5%)
+
   let S;
   const fresh = () => ({
     // 시작부터 굴릴 자금 + 스타터 봇 1대(항상 수입이 들어와 "돈이 없다"는 막힘 방지)
     money:2000, owned:BOTS.map((_,i)=> i===0?3:0), gachaMult:1, pulls:0,
     coll:{C:0,R:0,E:0,L:0}, fame:0, lastTs:now(), daily:{last:"",streak:0},
     boostUntil:0, freeGachaAt:0, ach:{}, endings:{}, trades:0, bestStreak:0, bestTrade:0, seenTut:0,
-    items:{}, vip:0, bestRound:0
+    items:{}, vip:0, bestRound:0, bestScore:0,
+    run:{ bal:STARTING, peak:STARTING, no:1, over:false }
   });
   const KEY = "trading-empire-v1";
   function load(){
@@ -534,6 +548,9 @@
       S.ach = (S.ach&&typeof S.ach==="object")? S.ach : {};
       S.endings = (S.endings&&typeof S.endings==="object")? S.endings : {};
       S.items = (S.items&&typeof S.items==="object")? S.items : {}; S.vip=num(S.vip); S.bestRound=num(S.bestRound);
+      S.bestScore=num(S.bestScore);
+      if(!S.run || typeof S.run!=="object") S.run={ bal:STARTING, peak:STARTING, no:1, over:false };
+      else { S.run.bal=num(S.run.bal)||STARTING; S.run.peak=Math.max(num(S.run.peak), S.run.bal); S.run.no=num(S.run.no)||1; S.run.over=!!S.run.over; }
       return true; } }catch(e){}
     S = fresh(); return false;
   }
@@ -744,10 +761,10 @@
   let betPct=0.25, betLev=2, streak=0;
   const pnlPct = () => TR.lev * TR.side * (MKT.price - TR.entry) / TR.entry;
   function openTrade(side){
-    if(TR.open) return;
-    const stake = Math.floor(S.money*betPct);
-    if(stake < 1){ toast("현금이 부족합니다 — 봇 수입을 모으세요"); return; }
-    S.money -= stake;
+    if(TR.open || S.run.over) return;
+    const stake = Math.floor(S.run.bal*betPct);
+    if(stake < 1){ toast("이번 판 자금이 부족합니다"); return; }
+    S.run.bal -= stake;
     TR.open=true; TR.side=side; TR.entry=MKT.price; TR.stake=stake; TR.lev=betLev;
     sfx("buy"); updateDesk(); renderHud();
   }
@@ -762,7 +779,7 @@
     if(profit>0) profit*=itemTradeMult()*botTradeMult();   // 🖱️아이템 + 🤖봇인프라: 매매 수익 증폭
     const net = profit - fee;                // 수수료 반영 순손익
     if(net>0){
-      streak++; if(streak>1) bonus=net*Math.min(streak-1,10)*0.1; S.money+=TR.stake+net+bonus;
+      streak++; if(streak>1) bonus=net*Math.min(streak-1,10)*0.1; S.run.bal+=TR.stake+net+bonus;
       MKT.roundPnl += net+bonus;   // 이번 라운드 수익 누적
       if(streak>S.bestStreak) S.bestStreak=streak;
       if(net+bonus>S.bestTrade) S.bestTrade=net+bonus;
@@ -770,20 +787,42 @@
       toast(`💰 +${fmt(net+bonus)}원 청산 (수수료 -${fmt(fee)})${streak>1?` · 🔥${streak}연승`:""}`);
       track("trade_close", { result:"win", net: Math.round(net+bonus), streak, lev: TR.lev });
     } else {
-      const ret=Math.max(0, TR.stake+profit-fee); streak=0; S.money+=ret;
+      const ret=Math.max(0, TR.stake+profit-fee); streak=0; S.run.bal+=ret;
       MKT.roundPnl += ret-TR.stake;   // 손실도 라운드 수익에 반영(음수)
       sfx("crash"); flash("var(--red)"); shake();
       toast(`📉 ${fmt(net)}원 (수수료 -${fmt(fee)}) — 연승 리셋`);
       track("trade_close", { result:"loss", lev: TR.lev });
     }
     S.trades++;
-    TR.open=false; updateDesk(); renderHud();
+    TR.open=false;
+    if(S.run.bal > S.run.peak) S.run.peak = S.run.bal;   // 점수 = 이번 판 최고 자금
+    if(S.run.bal < BUST){ endRun(); return; }            // 자금 바닥 → 판 종료
+    updateDesk(); renderHud();
   }
   const marginFloor = () => -0.985 - itemMargBonus();   // 🛡️ 방패로 여유 확대
   // 청산가: pnlPct==marginFloor 되는 시세. 레버 클수록 진입가에 가까움(위험).
   const liqPrice = () => TR.entry * (1 + marginFloor()/(TR.lev*TR.side));
   function marginCall(){ // 손실이 원금을 다 먹으면 강제 청산
     if(TR.open && pnlPct()<=marginFloor()){ closeTrade(); toast("⚠ 마진콜 — 강제 청산됨"); }
+  }
+  function endRun(){   // 파산 — 판 종료·점수 확정
+    const score = Math.round(S.run.peak);
+    const isBest = score > (S.bestScore||0);
+    if(isBest) S.bestScore = score;
+    S.run.over = true; TR.open=false; streak=0;
+    track("run_end", { score, trades: S.trades, run_no: S.run.no, best: S.bestScore });
+    sfx("crash"); shake();
+    $("goTitle").textContent = isBest ? "🎉 신기록 파산!" : "💥 청산 — 파산!";
+    $("goStat").innerHTML = `이번 판 최고 자금 <b>${fmt(score)}원</b><br>🏆 최고 기록 <b style="color:var(--gold)">${fmt(S.bestScore||0)}원</b> · 통산 ${fmt(S.run.no)}판째`;
+    $("goModal").hidden = false;
+    updateDesk(); renderHud(); save();
+  }
+  function startRun(){   // 새 판 시작
+    S.run = { bal:STARTING, peak:STARTING, no:((S.run&&S.run.no)||0)+1, over:false };
+    streak=0; TR.open=false;
+    $("goModal").hidden = true;
+    updateDesk(); renderHud(); save();
+    toast(`🔄 ${fmt(S.run.no)}판째 — 자금 ${fmt(STARTING)}원으로 시작!`);
   }
   function updateDesk(){
     const open=TR.open;
@@ -792,7 +831,7 @@
     // 세그먼트 on 표시
     document.querySelectorAll('.seg.amt button').forEach(b=>b.classList.toggle("on", +b.dataset.amt===betPct));
     document.querySelectorAll('.seg.lev button').forEach(b=>b.classList.toggle("on", +b.dataset.lev===betLev));
-    const stake=Math.floor(S.money*betPct);
+    const stake=Math.floor(S.run.bal*betPct);
     const liqDist=(0.985+itemMargBonus())/betLev*100, botB=(botTradeMult()-1)*100;
     $("orderHint").innerHTML = `베팅 <b style="color:var(--gold)">${fmt(stake)}원</b> ×${betLev} · 손익±${betLev*10}% · 수수료 ${(feeFrac(betLev)*100).toFixed(1)}% · <b style="color:var(--red)">청산 -${liqDist>=95?"거의없음":liqDist.toFixed(1)+"%"}</b>${botB>=1?` · <b style="color:var(--green)">🤖봇 +${botB.toFixed(0)}%</b>`:""}`;
     // 연승바
@@ -856,11 +895,11 @@
   }
   let lastMoney=0;
   function renderHud(){
-    const mEl=$("money"); mEl.textContent=fmt(S.money)+"원";
-    if(S.money>lastMoney+0.5){ mEl.classList.remove("bump"); void mEl.offsetWidth; mEl.classList.add("bump"); }
-    lastMoney=S.money;
-    $("cbInc").textContent = "봇 자동수입 +"+fmt(perSec())+"원/s"+(S.vip?" 💎":"");
-    $("cbInc").style.color = boostOn()? "var(--gold)":"var(--green)";
+    const mEl=$("money"); mEl.textContent=fmt(S.run.bal)+"원";
+    if(S.run.bal>lastMoney+0.5){ mEl.classList.remove("bump"); void mEl.offsetWidth; mEl.classList.add("bump"); }
+    lastMoney=S.run.bal;
+    $("cbInc").innerHTML = `🏔 최고 <b>${fmt(S.run.peak)}</b> · 🏆 기록 <b>${fmt(S.bestScore||0)}</b> · 🏦 은행 ${fmt(S.money)}`;
+    $("cbInc").style.color = "";
     $("presti").textContent = "명성 ×"+fameMult().toFixed(2);
     $("mktPrice").textContent = MKT.price.toFixed(1);
     const chg=(MKT.price-100), cEl=$("mktChg");
@@ -877,8 +916,8 @@
   }
   // 바이럴: 기록 자랑 + 게임 링크 공유(유저가 유저를 데려옴 = 지속지출0 유입)
   function shareBrag(){
-    track("share_click", { best_trade: Math.round(S.bestTrade), best_streak: S.bestStreak });
-    const txt = `📈 트레이딩 제국 — 최고 한 방 +${fmt(S.bestTrade)}원 · ${S.bestStreak}연승! 너도 이겨봐 👉`;
+    track("share_click", { best_score: Math.round(S.bestScore||0), best_streak: S.bestStreak });
+    const txt = `📈 트레이딩 제국 — 최고 점수 ${fmt(S.bestScore||0)}원 (최고 ${S.bestStreak}연승)! 너도 이겨봐 👉`;
     const url = "https://load0117.github.io/trading-empire/";
     if(navigator.share){ navigator.share({title:"트레이딩 제국", text:txt, url}).catch(()=>{}); }
     else if(navigator.clipboard){ navigator.clipboard.writeText(txt+" "+url).then(()=>toast("📋 자랑 문구 복사됨! 붙여넣어 공유하세요")).catch(()=>toast(txt)); }
@@ -1124,19 +1163,19 @@
 
   const had=load();
   MKT.round = MKT.round0 = Math.floor(now()/ROUND_MS); MKT.roundOpen = MKT.price;   // 라운드 기준점(세션 시작)
-  // 파산/빈손 구제 — 봇 0대 & 현금 바닥이면 스타터 자금+봇 지급(0에서 못 벗어나는 상황 제거)
-  let rescued=false;
-  if(totalBots()===0 && S.money<100){ S.money=Math.max(S.money,2000); S.owned[0]=3; rescued=true; }
   buildBots(); buildItems(); fitChart(); renderAll();
   MKT.nextEv=now()+rnd(10000,18000);
   if(had) grantOffline();
-  if(rescued){ save(); setTimeout(()=>toast("💰 시드머니 2,000원 + 스캘핑 봇 3대 지급! 이제 굴려보세요"),500); }
+  // 저장된 판이 이미 파산 상태거나 바닥이면(구버전 세이브 포함) 새 판으로 시작
+  if(S.run.over || S.run.bal < BUST) startRun();
   if(!S.seenTut) $("tutModal").hidden=false;   // 첫 실행(또는 튜토리얼 미시청) → 안내
   $("tutClose").onclick=()=>{ S.seenTut=1; $("tutModal").hidden=true; save(); track("tutorial_done"); };
   window.addEventListener("resize", fitChart);
   $("longBtn").onclick=()=>openTrade(1);
   $("shortBtn").onclick=()=>openTrade(-1);
   $("closeBtn").onclick=closeTrade;
+  $("goRestart").onclick=startRun;
+  $("goShare").onclick=shareBrag;
   document.querySelectorAll('.seg.amt button').forEach(b=>b.onclick=()=>{ betPct=+b.dataset.amt; updateDesk(); });
   document.querySelectorAll('.seg.lev button').forEach(b=>b.onclick=()=>{ betLev=+b.dataset.lev; updateDesk(); });
   $("tabBots").onclick=()=>tab("bots"); $("tabGacha").onclick=()=>tab("gacha"); $("tabShop").onclick=()=>tab("shop");
